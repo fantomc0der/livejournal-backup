@@ -3,7 +3,7 @@ import { Logger } from "../utils/logger.ts";
 import { scrapeCalendar } from "../scrapers/calendar.ts";
 import { scrapeYear } from "../scrapers/year.ts";
 import { scrapeDay } from "../scrapers/day.ts";
-import { writeDayFile, dayFileExists, getDayFilePath } from "../writers/file-writer.ts";
+import { writeDayFile, dayFileExists, getDayFilePath, writeTableOfContents } from "../writers/file-writer.ts";
 
 export async function runArchive(options: ArchiveOptions): Promise<void> {
   const logger = new Logger(options.verbose);
@@ -157,6 +157,10 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
 
   if (limitReached()) {
     logger.info(`Limit of ${options.limit} day(s) reached`);
+  }
+
+  if (!options.dryRun && totalDays > 0) {
+    await writeTableOfContents(options.outputDir, options.username, logger);
   }
 
   if (options.dryRun) {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdir, rm, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { writeDayFile, dayFileExists, getDayFilePath } from "../../src/writers/file-writer.ts";
+import { writeDayFile, dayFileExists, getDayFilePath, writeTableOfContents } from "../../src/writers/file-writer.ts";
 import { Logger } from "../../src/utils/logger.ts";
 import type { JournalEntry, DateEntry } from "../../src/types.ts";
 
@@ -158,5 +158,70 @@ describe("writeDayFile", () => {
     await writeDayFile(testDir, sampleDate, entries, logger);
     const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
     expect(content).toContain("### My Great Post");
+  });
+});
+
+describe("writeTableOfContents", () => {
+  it("creates livejournal.md in the output directory", async () => {
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
+    await writeTableOfContents(testDir, "testuser", logger);
+    const tocPath = join(testDir, "livejournal.md");
+    expect(await pathExists(tocPath)).toBe(true);
+  });
+
+  it("includes the username in the heading", async () => {
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
+    await writeTableOfContents(testDir, "testuser", logger);
+    const content = await readFile(join(testDir, "livejournal.md"), "utf-8");
+    expect(content).toContain("# LiveJournal Backup for testuser");
+  });
+
+  it("includes year and month headings", async () => {
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
+    await writeTableOfContents(testDir, "testuser", logger);
+    const content = await readFile(join(testDir, "livejournal.md"), "utf-8");
+    expect(content).toContain("## 2002");
+    expect(content).toContain("### January");
+  });
+
+  it("includes relative links to day files", async () => {
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
+    await writeTableOfContents(testDir, "testuser", logger);
+    const content = await readFile(join(testDir, "livejournal.md"), "utf-8");
+    expect(content).toContain("[January 24](2002/2002-01-24.md)");
+  });
+
+  it("groups entries across multiple years and months", async () => {
+    const entries: JournalEntry[] = [
+      { subject: "test", time: "10:00 am", url: "https://u.livejournal.com/1.html", content: "<p>test</p>" },
+    ];
+    await writeDayFile(testDir, { year: 2002, month: 1, day: 5 }, entries, logger);
+    await writeDayFile(testDir, { year: 2002, month: 3, day: 12 }, entries, logger);
+    await writeDayFile(testDir, { year: 2003, month: 6, day: 1 }, entries, logger);
+    await writeTableOfContents(testDir, "testuser", logger);
+    const content = await readFile(join(testDir, "livejournal.md"), "utf-8");
+    expect(content).toContain("## 2002");
+    expect(content).toContain("### January");
+    expect(content).toContain("### March");
+    expect(content).toContain("## 2003");
+    expect(content).toContain("### June");
+  });
+
+  it("includes date range in the description", async () => {
+    const entries: JournalEntry[] = [
+      { subject: "test", time: "10:00 am", url: "https://u.livejournal.com/1.html", content: "<p>test</p>" },
+    ];
+    await writeDayFile(testDir, { year: 2002, month: 1, day: 5 }, entries, logger);
+    await writeDayFile(testDir, { year: 2006, month: 12, day: 31 }, entries, logger);
+    await writeTableOfContents(testDir, "testuser", logger);
+    const content = await readFile(join(testDir, "livejournal.md"), "utf-8");
+    expect(content).toContain("January 5, 2002");
+    expect(content).toContain("December 31, 2006");
+  });
+
+  it("does not create file when no day files exist", async () => {
+    await writeTableOfContents(testDir, "testuser", logger);
+    const tocPath = join(testDir, "livejournal.md");
+    expect(await pathExists(tocPath)).toBe(false);
   });
 });
