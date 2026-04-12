@@ -88,6 +88,7 @@ Options:
   --year <year>       Archive only this year (e.g. 2002)
   --month <month>     Archive only this month, 1–12 (requires --year)
   --day <day>         Archive only this day, 1–31 (requires --year and --month)
+  --limit <n>         Max number of days to archive (omit for no limit)
   --retries <n>       Retries per page on failure (default: 3)
   --delay <ms>        Wait between requests in ms (default: 1000)
   --output <dir>      Output directory (default: ./archive)
@@ -211,6 +212,20 @@ bun run src/index.ts archive --year 2002 --month 1 --day 24 --output ./test-outp
 ```
 
 This is much faster than pulling a whole month when you only need to verify one day's output.
+
+### Quick smoke test with `--limit`
+
+To verify the full archive pipeline without scraping an entire journal, use `--limit 1` without any date filters. This crawls the calendar and year pages normally but stops after writing one day file:
+
+```bash
+bun run src/index.ts archive --limit 1 --output ./test-output/smoke --delay 2000
+```
+
+This is the fastest way to confirm end-to-end functionality (calendar → year → day → markdown) during development. Combine with `--year` to limit which year is scraped first:
+
+```bash
+bun run src/index.ts archive --year 2002 --limit 3 --output ./test-output/first-three --delay 2000
+```
 
 ### Viewing source HTML
 

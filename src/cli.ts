@@ -27,11 +27,13 @@ export function buildCli(): Command {
     .option("--delay <ms>", "Wait time in ms between requests", parseIntOption, 1000)
     .option("--output <dir>", "Output directory", "./archive")
     .option("--verbose", "Enable verbose logging", false)
+    .option("--limit <n>", "Max number of days to archive (omit for no limit)", parseIntOption)
     .option("--skip-existing", "Skip dates that already have a markdown file", false)
     .action(async (usernameArg: string | undefined, opts: {
       year?: number;
       month?: number;
       day?: number;
+      limit?: number;
       retries: number;
       delay: number;
       output: string;
@@ -60,6 +62,7 @@ export function buildCli(): Command {
         year: opts.year,
         month: opts.month,
         day: opts.day,
+        limit: opts.limit,
         retries: opts.retries,
         delay: opts.delay,
         outputDir: opts.output,

@@ -62,6 +62,8 @@ bun run src/index.ts archive [username] [options]
 Options:
   --year <year>       Only archive a specific year (e.g. 2002)
   --month <month>     Only archive a specific month 1-12 (requires --year)
+  --day <day>         Only archive a specific day 1-31 (requires --year and --month)
+  --limit <n>         Max number of days to archive (omit for no limit)
   --retries <n>       Number of retries per page on failure (default: 3)
   --delay <ms>        Wait time in ms between requests (default: 1000)
   --output <dir>      Output directory (default: ./archive)
@@ -87,6 +89,9 @@ bun run src/index.ts archive --year 2005 --verbose
 
 # Override .env username for a one-off run
 bun run src/index.ts archive otherusername --year 2005
+
+# Archive only the first 5 days (useful for quick testing)
+bun run src/index.ts archive --limit 5
 ```
 
 ## Output Structure

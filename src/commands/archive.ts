@@ -10,9 +10,15 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
 
   logger.info(`Starting archive for user: ${options.username}`);
   logger.info(`Output directory: ${options.outputDir}`);
+  if (options.limit !== undefined) {
+    logger.info(`Limit: ${options.limit} day(s)`);
+  }
 
   let totalEntries = 0;
   let totalDays = 0;
+
+  const limitReached = (): boolean =>
+    options.limit !== undefined && totalDays >= options.limit;
 
   if (options.day !== undefined && options.month !== undefined && options.year !== undefined) {
     // Single-day mode: skip calendar/year scraping entirely
@@ -54,6 +60,8 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
     }
 
     for (const year of years) {
+      if (limitReached()) break;
+
       logger.info(`Processing year ${year}...`);
 
       let dates: DateEntry[];
@@ -80,6 +88,8 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
       }
 
       for (const date of dates) {
+        if (limitReached()) break;
+
         const entries = await scrapeDay(
           options.username,
           date.year,
@@ -107,5 +117,8 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
     }
   }
 
+  if (limitReached()) {
+    logger.info(`Limit of ${options.limit} day(s) reached`);
+  }
   logger.info(`Archive complete: ${totalEntries} entries across ${totalDays} days`);
 }
