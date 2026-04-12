@@ -14,9 +14,34 @@ A TypeScript/Bun CLI that scrapes a LiveJournal user's journal entries and archi
 
 ---
 
+## Environment
+
+The project uses a `.env` file (gitignored) to store the default LiveJournal username for local runs and testing.
+
+- **`.env.example`** — committed template showing required variables.
+- **`.env`** — local copy with real values. **Never committed.**
+
+Before running the CLI locally, check that `.env` exists and has `LJ_USERNAME` set. If it doesn't exist, copy from the template:
+
+```bash
+cp .env.example .env
+```
+
+Bun loads `.env` automatically — no extra dependencies required.
+
+| Variable | Purpose | Required |
+|---|---|---|
+| `LJ_USERNAME` | Default LiveJournal username for the `archive` command | Yes (unless username is passed as a CLI argument) |
+
+**For agents**: Always read `LJ_USERNAME` from `.env` to determine which username to test against. Never hardcode a username in commands, commits, or code.
+
+---
+
 ## Project Structure
 
 ```
+.env.example                  # Environment variable template (committed)
+.env                          # Local env values — gitignored, never committed
 src/
   index.ts                    # Entry point — wires CLI
   cli.ts                      # Commander setup, option parsing
@@ -56,7 +81,7 @@ tests/
 ## CLI Reference
 
 ```
-bun run src/index.ts archive <username> [options]
+bun run src/index.ts archive [username] [options]
 
 Options:
   --year <year>       Archive only this year (e.g. 2002)
@@ -67,6 +92,8 @@ Options:
   --verbose           Enable debug-level logging
   --skip-existing     Skip dates that already have a .md file
 ```
+
+The `username` argument is optional. If omitted, the CLI reads `LJ_USERNAME` from `.env`. A CLI argument always takes priority over the env value.
 
 ---
 
@@ -82,16 +109,16 @@ bun test
 
 ### When testing the CLI against a live account
 
-When testing the tool, create a subfolder within the repository's `test-output/` folder to have the CLI target.
+Ensure `.env` has `LJ_USERNAME` set (see **Environment** above). When testing, create a subfolder within the repository's `test-output/` folder to have the CLI target.
 
 Example:
 ```bash
-bun run src/index.ts archive mikethecoder --year 2002 --month 1 --output ./test-output/jan-2002 --delay 2000
+bun run src/index.ts archive --year 2002 --month 1 --output ./test-output/jan-2002 --delay 2000
 ```
 
 `test-output/` is gitignored — no scraped data is ever committed.
 
-Spot-check output files against the live site to verify correctness. For example, compare `test-output/.../2002-01-24.md` to `https://mikethecoder.livejournal.com/2002/01/24/`.
+Spot-check output files against the live site to verify correctness.
 
 ---
 

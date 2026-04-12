@@ -12,30 +12,52 @@ A production-quality TypeScript/Bun CLI for archiving LiveJournal journal entrie
 bun install
 ```
 
-## Usage
+## Setup
 
-### Archive all entries for a user
+Copy the example env file and set your LiveJournal username:
 
 ```bash
-bun run src/index.ts archive <username>
+cp .env.example .env
+```
+
+Then edit `.env`:
+
+```
+LJ_USERNAME=myusername
+```
+
+This lets you run the CLI without passing a username every time. The `.env` file is gitignored and will never be committed.
+
+## Usage
+
+### Archive all entries (using username from .env)
+
+```bash
+bun run src/index.ts archive
+```
+
+### Archive with an explicit username (overrides .env)
+
+```bash
+bun run src/index.ts archive myusername
 ```
 
 ### Archive a specific year
 
 ```bash
-bun run src/index.ts archive myusername --year 2002
+bun run src/index.ts archive --year 2002
 ```
 
 ### Archive a specific month
 
 ```bash
-bun run src/index.ts archive myusername --year 2002 --month 1
+bun run src/index.ts archive --year 2002 --month 1
 ```
 
 ### All options
 
 ```
-bun run src/index.ts archive <username> [options]
+bun run src/index.ts archive [username] [options]
 
 Options:
   --year <year>       Only archive a specific year (e.g. 2002)
@@ -49,17 +71,22 @@ Options:
   -V, --version       Display version
 ```
 
+The username argument is optional. If omitted, the CLI reads `LJ_USERNAME` from your `.env` file. If neither is provided, the CLI exits with an error.
+
 ### Examples
 
 ```bash
-# Archive everything with a 2-second delay between requests
-bun run src/index.ts archive myusername --delay 2000 --output ./my-journal
+# Archive everything with a 2-second delay (username from .env)
+bun run src/index.ts archive --delay 2000 --output ./my-journal
 
 # Archive 2003 only, skip files already downloaded
-bun run src/index.ts archive myusername --year 2003 --skip-existing
+bun run src/index.ts archive --year 2003 --skip-existing
 
 # Verbose mode to see all requests
-bun run src/index.ts archive myusername --year 2005 --verbose
+bun run src/index.ts archive --year 2005 --verbose
+
+# Override .env username for a one-off run
+bun run src/index.ts archive otherusername --year 2005
 ```
 
 ## Output Structure

@@ -18,7 +18,7 @@ export function buildCli(): Command {
     .version("1.0.0");
 
   program
-    .command("archive <username>")
+    .command("archive [username]")
     .description("Archive all journal entries for a LiveJournal user")
     .option("--year <year>", "Only archive a specific year (e.g. 2002)", parseIntOption)
     .option("--month <month>", "Only archive a specific month 1-12 (requires --year)", parseIntOption)
@@ -27,7 +27,7 @@ export function buildCli(): Command {
     .option("--output <dir>", "Output directory", "./archive")
     .option("--verbose", "Enable verbose logging", false)
     .option("--skip-existing", "Skip dates that already have a markdown file", false)
-    .action(async (username: string, opts: {
+    .action(async (usernameArg: string | undefined, opts: {
       year?: number;
       month?: number;
       retries: number;
@@ -36,6 +36,13 @@ export function buildCli(): Command {
       verbose: boolean;
       skipExisting: boolean;
     }) => {
+      const username = usernameArg || process.env.LJ_USERNAME;
+
+      if (!username) {
+        console.error("Error: No username provided. Pass a username argument or set LJ_USERNAME in your .env file.");
+        process.exit(1);
+      }
+
       if (opts.month !== undefined && opts.year === undefined) {
         console.error("Error: --month requires --year to be specified");
         process.exit(1);
