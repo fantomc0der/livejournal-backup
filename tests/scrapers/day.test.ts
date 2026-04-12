@@ -51,6 +51,24 @@ const MOCK_DAY_HTML_NO_ENTRIES = `
 </html>
 `;
 
+const MOCK_DAY_HTML_WITH_MOOD_ICONS = `
+<!DOCTYPE html>
+<html>
+<body>
+<div class="content">
+  <div class="entry">
+    <h4 class="subject"><a href="https://myusername.livejournal.com/435.html" class="subj-link">(no subject)</a> @ 04:34 pm</h4>
+    <div class="text">
+      <p><strong>Current Mood:</strong> <img src="https://imgprx.livejournal.net/abc123/def456" alt="content"> content</p>
+      <p><strong>Current Music:</strong> foo fighters - everlong</p>
+      <p>hey this is my first post here...</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+`;
+
 describe("extractEntriesFromHtml", () => {
   it("extracts multiple entries from a day page", () => {
     const entries = extractEntriesFromHtml(MOCK_DAY_HTML_WITH_ENTRIES, "myusername");
@@ -82,6 +100,14 @@ describe("extractEntriesFromHtml", () => {
   it("returns empty array when no entries found", () => {
     const entries = extractEntriesFromHtml(MOCK_DAY_HTML_NO_ENTRIES, "myusername");
     expect(entries).toEqual([]);
+  });
+
+  it("preserves mood icon img tags in raw HTML content for converter to handle", () => {
+    const entries = extractEntriesFromHtml(MOCK_DAY_HTML_WITH_MOOD_ICONS, "myusername");
+    expect(entries.length).toBe(1);
+    expect(entries[0]?.content).toContain("Current Mood:");
+    expect(entries[0]?.content).toContain("imgprx.livejournal.net");
+    expect(entries[0]?.content).toContain("Current Music:");
   });
 
   it("handles article elements as entries", () => {

@@ -9,6 +9,8 @@ const LJ_NAV_PATTERNS = [
   /link\s*\|/i,
 ];
 
+const LJ_METADATA_LABELS = /Current\s+(Mood|Music|Location):/i;
+
 function createTurndownService(): TurndownService {
   const td = new TurndownService({
     headingStyle: "atx",
@@ -21,6 +23,17 @@ function createTurndownService(): TurndownService {
       if (node.nodeName !== "A") return false;
       const text = node.textContent ?? "";
       return LJ_NAV_PATTERNS.some((p) => p.test(text));
+    },
+    replacement: () => "",
+  });
+
+  td.addRule("remove-lj-mood-icons", {
+    filter: (node) => {
+      if (node.nodeName !== "IMG") return false;
+      const parent = node.parentNode;
+      if (!parent) return false;
+      const parentText = parent.textContent ?? "";
+      return LJ_METADATA_LABELS.test(parentText);
     },
     replacement: () => "",
   });
@@ -43,6 +56,7 @@ export function htmlToMarkdown(html: string): string {
   if (!html.trim()) return "";
   const md = turndownService.turndown(html);
   return md
+    .replace(/ {2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

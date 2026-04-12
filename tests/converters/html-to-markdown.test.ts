@@ -77,6 +77,46 @@ describe("htmlToMarkdown", () => {
     expect(result).toContain("hey this is my first post here...");
   });
 
+  it("strips mood icon images but preserves mood text", () => {
+    const html = `
+      <p><strong>Current Mood:</strong> <img src="https://imgprx.livejournal.net/abc123/def456" alt="content"> content</p>
+      <p><strong>Current Music:</strong> foo fighters - everlong</p>
+      <p>hey this is my first post here...</p>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("**Current Mood:** content");
+    expect(result).not.toContain("![");
+    expect(result).not.toContain("imgprx.livejournal.net");
+    expect(result).toContain("**Current Music:**");
+    expect(result).toContain("foo fighters - everlong");
+    expect(result).toContain("hey this is my first post here...");
+  });
+
+  it("strips mood icon from l-stat.livejournal.net", () => {
+    const html = `<p><strong>Current Mood:</strong> <img src="https://l-stat.livejournal.net/img/mood/happy.gif" alt="happy"> happy</p>`;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("**Current Mood:** happy");
+    expect(result).not.toContain("![");
+    expect(result).not.toContain("l-stat.livejournal.net");
+  });
+
+  it("strips Current Location icon images", () => {
+    const html = `<p><strong>Current Location:</strong> <img src="https://imgprx.livejournal.net/loc123" alt="home"> home</p>`;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("**Current Location:** home");
+    expect(result).not.toContain("![");
+  });
+
+  it("preserves non-mood images in entry body", () => {
+    const html = `
+      <p>Check out this photo:</p>
+      <p><img src="https://example.com/photo.jpg" alt="my photo"></p>
+      <p>Pretty cool right?</p>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("![my photo](https://example.com/photo.jpg)");
+  });
+
   it("collapses multiple blank lines to at most two", () => {
     const html = "<p>First</p><p></p><p></p><p></p><p>Second</p>";
     const result = htmlToMarkdown(html);
