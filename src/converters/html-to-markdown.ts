@@ -36,7 +36,8 @@ function createTurndownService(): TurndownService {
     replacement: (_content, node) => {
       const href = (node as HTMLAnchorElement).getAttribute("href") ?? "";
       const match = /[?&]to=([^&]+)/.exec(href);
-      const destination = match ? decodeURIComponent(match[1]) : href;
+      const captured = match?.[1];
+      const destination = captured ? decodeURIComponent(captured) : href;
       const text = node.textContent ?? "";
       if (text === destination || text === "") {
         return destination;

@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { isTag, type AnyNode, type Element } from "domhandler";
 import { fetchWithRetry, sleep } from "../utils/http.ts";
 import type { Logger } from "../utils/logger.ts";
 import type { JournalEntry } from "../types.ts";
@@ -34,7 +35,7 @@ export function extractEntriesFromHtml(html: string, username: string): JournalE
     ".entry-content",
   ];
 
-  let entryElements = $([]);
+  let entryElements: cheerio.Cheerio<AnyNode> | null = null;
   for (const selector of entrySelectors) {
     const found = $(selector);
     if (found.length > 0) {
@@ -43,11 +44,12 @@ export function extractEntriesFromHtml(html: string, username: string): JournalE
     }
   }
 
-  if (entryElements.length === 0) {
+  if (!entryElements || entryElements.length === 0) {
     return extractEntriesFromTitleAnchors($, username);
   }
 
   entryElements.each((_i, el) => {
+    if (!isTag(el)) return;
     const entry = parseEntryElement($, el, username);
     if (entry) {
       entries.push(entry);
@@ -59,7 +61,7 @@ export function extractEntriesFromHtml(html: string, username: string): JournalE
 
 function parseEntryElement(
   $: cheerio.CheerioAPI,
-  el: cheerio.Element,
+  el: Element,
   username: string
 ): JournalEntry | null {
   const $el = $(el);
