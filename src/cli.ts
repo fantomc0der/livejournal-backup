@@ -22,6 +22,7 @@ export function buildCli(): Command {
     .description("Archive all journal entries for a LiveJournal user")
     .option("--year <year>", "Only archive a specific year (e.g. 2002)", parseIntOption)
     .option("--month <month>", "Only archive a specific month 1-12 (requires --year)", parseIntOption)
+    .option("--day <day>", "Only archive a specific day 1-31 (requires --year and --month)", parseIntOption)
     .option("--retries <n>", "Number of retries per page on failure", parseIntOption, 3)
     .option("--delay <ms>", "Wait time in ms between requests", parseIntOption, 1000)
     .option("--output <dir>", "Output directory", "./archive")
@@ -30,6 +31,7 @@ export function buildCli(): Command {
     .action(async (usernameArg: string | undefined, opts: {
       year?: number;
       month?: number;
+      day?: number;
       retries: number;
       delay: number;
       output: string;
@@ -48,10 +50,16 @@ export function buildCli(): Command {
         process.exit(1);
       }
 
+      if (opts.day !== undefined && (opts.year === undefined || opts.month === undefined)) {
+        console.error("Error: --day requires both --year and --month to be specified");
+        process.exit(1);
+      }
+
       await runArchive({
         username,
         year: opts.year,
         month: opts.month,
+        day: opts.day,
         retries: opts.retries,
         delay: opts.delay,
         outputDir: opts.output,

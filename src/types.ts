@@ -9,6 +9,7 @@ export interface ArchiveOptions {
   username: string;
   year?: number;
   month?: number;
+  day?: number;
   retries: number;
   delay: number;
   outputDir: string;
