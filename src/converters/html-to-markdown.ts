@@ -27,6 +27,24 @@ function createTurndownService(): TurndownService {
     replacement: () => "",
   });
 
+  td.addRule("unwrap-lj-away-links", {
+    filter: (node) => {
+      if (node.nodeName !== "A") return false;
+      const href = (node as HTMLAnchorElement).getAttribute("href") ?? "";
+      return /livejournal\.com\/away\?to=/i.test(href);
+    },
+    replacement: (_content, node) => {
+      const href = (node as HTMLAnchorElement).getAttribute("href") ?? "";
+      const match = /[?&]to=([^&]+)/.exec(href);
+      const destination = match ? decodeURIComponent(match[1]) : href;
+      const text = node.textContent ?? "";
+      if (text === destination || text === "") {
+        return destination;
+      }
+      return `[${text}](${destination})`;
+    },
+  });
+
   td.addRule("remove-lj-mood-icons", {
     filter: (node) => {
       if (node.nodeName !== "IMG") return false;

@@ -117,6 +117,25 @@ describe("htmlToMarkdown", () => {
     expect(result).toContain("![my photo](https://example.com/photo.jpg)");
   });
 
+  it("unwraps LJ /away redirect links to direct URLs", () => {
+    const html = `<p>check out <a href="https://www.livejournal.com/away?to=http%3A%2F%2Fwww.liquidcode.org%2Fworm.html" rel="nofollow">http://www.liquidcode.org/worm.html</a></p>`;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("http://www.liquidcode.org/worm.html");
+    expect(result).not.toContain("livejournal.com/away");
+  });
+
+  it("unwraps LJ /away links with different link text", () => {
+    const html = `<p><a href="https://www.livejournal.com/away?to=http%3A%2F%2Fexample.com%2Fpage">click here</a></p>`;
+    const result = htmlToMarkdown(html);
+    expect(result).toBe("[click here](http://example.com/page)");
+  });
+
+  it("unwraps LJ /away links where text matches destination", () => {
+    const html = `<p><a href="https://www.livejournal.com/away?to=http%3A%2F%2Fexample.com">http://example.com</a></p>`;
+    const result = htmlToMarkdown(html);
+    expect(result).toBe("http://example.com");
+  });
+
   it("strips LJ clearer divs", () => {
     const html = `
       <div class="entry-content">some text</div>
