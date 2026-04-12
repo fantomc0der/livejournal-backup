@@ -53,7 +53,7 @@ src/
     year.ts                   # Fetches /{username}/{year}/ → extracts dates with entries
     day.ts                    # Fetches /{username}/{year}/{mm}/{dd}/ → extracts entries
   converters/
-    html-to-markdown.ts       # Turndown-based HTML→Markdown with LJ nav link stripping
+    html-to-markdown.ts       # Turndown-based HTML→Markdown with LJ artifact stripping
   writers/
     file-writer.ts            # Writes {outputDir}/{year}/{YYYY}-{MM}-{DD}.md
   utils/
@@ -75,6 +75,7 @@ tests/
 - **No `@ts-ignore` or `as any`** — strict TypeScript throughout.
 - **Scraper resilience**: selectors try multiple fallbacks in order; year extraction scans both `<a href>` patterns and plain text nodes so it doesn't break if LJ restructures the toolbar.
 - **Commander v14 quirk**: `parseInt` cannot be passed directly as a Commander option parser because it receives two arguments (`value, previousDefault`). Use the local `parseIntOption` wrapper in `cli.ts`.
+- **No hard wrapping** — do not insert line breaks to wrap prose at a fixed column width. This applies everywhere: markdown files, commit messages, code comments, and any other written text. Let the editor or renderer handle soft wrapping. Hard wraps create noisy diffs when sentences are edited and serve no purpose in a modern toolchain.
 
 ---
 
@@ -86,6 +87,7 @@ bun run src/index.ts archive [username] [options]
 Options:
   --year <year>       Archive only this year (e.g. 2002)
   --month <month>     Archive only this month, 1–12 (requires --year)
+  --day <day>         Archive only this day, 1–31 (requires --year and --month)
   --retries <n>       Retries per page on failure (default: 3)
   --delay <ms>        Wait between requests in ms (default: 1000)
   --output <dir>      Output directory (default: ./archive)
@@ -105,7 +107,7 @@ Tests use `bun:test` (`describe` / `it` / `expect`). **No real HTTP calls are ma
 bun test
 ```
 
-45 tests across 5 files should all pass in under 200 ms.
+56 tests across 5 files should all pass in under 200 ms.
 
 ### When testing the CLI against a live account
 
@@ -137,8 +139,14 @@ Spot-check output files against the live site to verify correctness.
 ### Day page (`/{username}/{year}/{mm}/{dd}/`)
 - Each entry is a `div.entry` containing:
   - `h4.subject` — entry title + timestamp (e.g. `(no subject) @ 04:34 pm`)
-  - `div.text` — entry body HTML
-  - Mood/music metadata as styled spans before the body
+  - `div.text` — entry body HTML, which contains:
+    - `div.currents` — metadata block with mood/music/location as child divs
+    - `div.currentmood` — mood text + an `<img class="meta-mood-img">` icon (stripped during conversion)
+    - `div.currentmusic` — music text
+    - `div.entry-content` — the actual post body
+    - `div.clearer` — layout spacer with `&nbsp;` (stripped during conversion)
+  - `div.comments` — comment/reply links (stripped during conversion)
+- External links are wrapped by LJ through `https://www.livejournal.com/away?to=<encoded-url>` — unwrapped during conversion to point directly at the destination.
 - Falls back to scanning `h3 a / h2 a / h4 a` for entry permalink patterns if `div.entry` is absent.
 
 ---
@@ -169,6 +177,44 @@ hey this is my first post here...
 
 sitting around right now...
 ```
+
+---
+
+## Troubleshooting with Live LJ Pages
+
+When debugging scraping or conversion issues, you may need to view the original LiveJournal HTML to understand what the tool is working with.
+
+### Finding a username to test against
+
+1. Check the `LJ_USERNAME` environment variable.
+2. If not set, read `LJ_USERNAME` from the `.env` file in the project root.
+3. If neither exists, ask the user for a username to use.
+
+**Never commit any real usernames into the repository.** Test commands, commit messages, and code must not contain actual LiveJournal usernames.
+
+### Navigating LiveJournal pages
+
+For a given username, the key page URLs are:
+
+- **Calendar (all years):** `https://{username}.livejournal.com/calendar/`
+- **Specific year:** `https://{username}.livejournal.com/{year}/`
+- **Specific day:** `https://{username}.livejournal.com/{year}/{mm}/{dd}/`
+
+If you are investigating a problem visible in an output file under `archive/` or `test-output/`, you can derive the date from the filename (e.g. `2002/2002-01-24.md` → year 2002, month 01, day 24) and construct the source URL from the username.
+
+### Testing a single day
+
+Use the `--day` flag to archive a single day without scraping the calendar or year pages:
+
+```bash
+bun run src/index.ts archive --year 2002 --month 1 --day 24 --output ./test-output/debug --delay 2000
+```
+
+This is much faster than pulling a whole month when you only need to verify one day's output.
+
+### Viewing source HTML
+
+To inspect the raw HTML that the tool will scrape, fetch the day page URL directly (e.g. via `curl`, PowerShell `Invoke-WebRequest`, or a web browser's View Source). Look for the `div.entry` elements and their child structure (`div.text`, `div.currents`, `div.entry-content`). LJ's `robots.txt` blocks some automated fetchers, so you may need to use tools that don't send bot-like user-agent strings.
 
 ---
 
