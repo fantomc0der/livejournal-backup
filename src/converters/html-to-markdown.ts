@@ -1,15 +1,39 @@
 import TurndownService from "turndown";
 
-const LJ_NAV_PATTERNS = [
-  /\d+\s+(?:comment|comments|erection|erections)/i,
-  /touch me here/i,
-  /leave a comment/i,
-  /read comments/i,
-  /post a comment/i,
-  /link\s*\|/i,
+const LJ_COMMENT_URL_PATTERNS = [
+  /livejournal\.com\/\d+\.html\?mode=reply/i,
+  /livejournal\.com\/\d+\.html\?view=comments/i,
+  /livejournal\.com\/\d+\.html\?thread=/i,
+  /\?mode=reply/i,
+  /\?view=comments/i,
+];
+
+const LJ_NAV_CONTAINER_CLASSES = [
+  "comments",
+  "entryextra",
+  "entryreadlink",
+  "entrypostlink",
 ];
 
 const LJ_METADATA_LABELS = /Current\s+(Mood|Music|Location):/i;
+
+function isLjCommentLink(href: string): boolean {
+  return LJ_COMMENT_URL_PATTERNS.some((p) => p.test(href));
+}
+
+function containsOnlyLjNavLinks(node: Node): boolean {
+  const links = (node as HTMLElement).querySelectorAll?.("a");
+  if (!links || links.length === 0) return false;
+  const textWithoutLinks = (node.textContent ?? "").replace(/\s+/g, "").trim();
+  const linkText = Array.from(links)
+    .map((a) => (a.textContent ?? "").replace(/\s+/g, "").trim())
+    .join("");
+  const nonLinkText = textWithoutLinks.replace(new RegExp(linkText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "").replace(/[|()]/g, "").trim();
+  return (
+    nonLinkText.length === 0 &&
+    Array.from(links).every((a) => isLjCommentLink(a.getAttribute("href") ?? ""))
+  );
+}
 
 function createTurndownService(): TurndownService {
   const td = new TurndownService({
@@ -21,8 +45,8 @@ function createTurndownService(): TurndownService {
   td.addRule("remove-lj-nav", {
     filter: (node) => {
       if (node.nodeName !== "A") return false;
-      const text = node.textContent ?? "";
-      return LJ_NAV_PATTERNS.some((p) => p.test(text));
+      const href = (node as HTMLAnchorElement).getAttribute("href") ?? "";
+      return isLjCommentLink(href);
     },
     replacement: () => "",
   });
@@ -66,11 +90,18 @@ function createTurndownService(): TurndownService {
     replacement: () => "",
   });
 
-  td.addRule("remove-lj-nav-spans", {
+  td.addRule("remove-lj-nav-containers", {
     filter: (node) => {
-      if (!["SPAN", "DIV", "P"].includes(node.nodeName)) return false;
-      const text = node.textContent ?? "";
-      return LJ_NAV_PATTERNS.some((p) => p.test(text)) && (node.textContent?.length ?? 0) < 100;
+      if (!["UL", "DIV", "SPAN", "P", "LI"].includes(node.nodeName)) return false;
+      const el = node as HTMLElement;
+      const className = el.className ?? "";
+      if (LJ_NAV_CONTAINER_CLASSES.some((cls) => className.split(/\s+/).includes(cls))) {
+        return true;
+      }
+      if ((node.textContent?.length ?? 0) < 200) {
+        return containsOnlyLjNavLinks(node);
+      }
+      return false;
     },
     replacement: () => "",
   });

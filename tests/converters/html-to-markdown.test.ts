@@ -40,19 +40,40 @@ describe("htmlToMarkdown", () => {
     expect(result).toContain("const x = 1;");
   });
 
-  it("removes LJ comment navigation links", () => {
+  it("removes LJ comment navigation links by URL pattern regardless of link text", () => {
     const result = htmlToMarkdown(
-      '<p><a href="/435.html?mode=reply">3 erections</a> | <a href="/435.html">touch me here</a></p>'
+      '<p><a href="https://user.livejournal.com/435.html?view=comments#comments">3 erections</a> | <a href="https://user.livejournal.com/435.html?mode=reply#add_comment">touch me here</a></p>'
     );
     expect(result).not.toContain("erections");
     expect(result).not.toContain("touch me here");
   });
 
-  it("removes leave a comment links", () => {
+  it("removes comment links with any theme-customized text", () => {
     const result = htmlToMarkdown(
-      '<p><a href="/post">leave a comment</a></p>'
+      '<p><a href="https://user.livejournal.com/485.html?view=comments#comments">4 spankings</a></p>'
     );
-    expect(result).not.toContain("leave a comment");
+    expect(result).not.toContain("spankings");
+  });
+
+  it("removes post-comment links with any theme-customized text", () => {
+    const result = htmlToMarkdown(
+      '<p><a href="https://user.livejournal.com/485.html?mode=reply#add_comment">spank me</a></p>'
+    );
+    expect(result).not.toContain("spank me");
+  });
+
+  it("removes comment links with standard text", () => {
+    const result = htmlToMarkdown(
+      '<p><a href="https://user.livejournal.com/315.html?mode=reply#add_comment">Leave a comment</a></p>'
+    );
+    expect(result).not.toContain("Leave a comment");
+  });
+
+  it("removes comment links using short URL patterns", () => {
+    const result = htmlToMarkdown(
+      '<p><a href="/435.html?mode=reply#add_comment">post a comment</a></p>'
+    );
+    expect(result).not.toContain("post a comment");
   });
 
   it("returns empty string for empty input", () => {
@@ -166,6 +187,54 @@ describe("htmlToMarkdown", () => {
     expect(result).toContain("this is my post");
     expect(result).not.toContain("![");
     expect(result).not.toMatch(/^\s+$/m);
+  });
+
+  it("strips entryextra containers with comment links", () => {
+    const html = `
+      <div>some text</div>
+      <ul class="entryextra">
+        <li class="entryreadlink"><a href="https://user.livejournal.com/485.html?view=comments#comments">4 spankings</a></li>
+        <li class="entrypostlink"><a href="https://user.livejournal.com/485.html?mode=reply#add_comment">spank me</a></li>
+      </ul>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toBe("some text");
+  });
+
+  it("strips div.comments containers", () => {
+    const html = `
+      <div class="entry-content">post body</div>
+      <div class="comments">
+        <a href="https://user.livejournal.com/435.html?view=comments#comments">3 erections</a>&nbsp;|&nbsp;
+        <a href="https://user.livejournal.com/435.html?mode=reply#add_comment">touch me here</a>
+      </div>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toBe("post body");
+  });
+
+  it("strips S1 theme comment links in p/font wrappers", () => {
+    const html = `
+      <font face="Verdana" size="2">Hello world</font>
+      <p align="RIGHT"><font face="Verdana" size="1">(<a href="https://user.livejournal.com/314.html?mode=reply#add_comment">comment on this</a>)</font></p>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).not.toContain("comment on this");
+    expect(result).toContain("Hello world");
+  });
+
+  it("preserves regular links that are not LJ comment links", () => {
+    const result = htmlToMarkdown(
+      '<p>check out <a href="https://example.com/cool-page.html">this page</a></p>'
+    );
+    expect(result).toContain("[this page](https://example.com/cool-page.html)");
+  });
+
+  it("preserves LJ entry permalink links in content", () => {
+    const result = htmlToMarkdown(
+      '<p>see <a href="https://user.livejournal.com/1234.html">my other post</a></p>'
+    );
+    expect(result).toContain("[my other post](https://user.livejournal.com/1234.html)");
   });
 
   it("collapses multiple blank lines to at most two", () => {

@@ -4,6 +4,16 @@ A TypeScript/Bun CLI that scrapes a LiveJournal user's journal entries and archi
 
 ---
 
+## Hard Rules
+
+These rules apply to every action — code, commits, comments, markdown, and CLI commands. No exceptions.
+
+1. **No real usernames in committed content.** Never include actual LiveJournal usernames in code, commit messages, branch names, or any other content that gets committed to the repository. Read `LJ_USERNAME` from `.env` at runtime; refer to users generically (e.g. "the configured user", "a test user") in prose.
+2. **No hard wrapping.** Do not insert line breaks to wrap prose at a fixed column width. This applies everywhere: markdown files, commit messages, code comments, PR descriptions, and any other written text. Let the editor or renderer handle soft wrapping. Hard wraps create noisy diffs when sentences are edited and serve no purpose in a modern toolchain.
+3. **No type-safety escape hatches.** Never use `@ts-ignore`, `@ts-expect-error`, or `as any`.
+
+---
+
 ## Runtime & Package Manager
 
 - **Runtime**: [Bun](https://bun.sh) (not Node). Use `bun` for all install/run/test commands.
@@ -33,7 +43,7 @@ Bun loads `.env` automatically — no extra dependencies required.
 |---|---|---|
 | `LJ_USERNAME` | Default LiveJournal username for the `archive` command | Yes (unless username is passed as a CLI argument) |
 
-**For agents**: Always read `LJ_USERNAME` from `.env` to determine which username to test against. Never hardcode a username in commands, commits, or code.
+**For agents**: Always read `LJ_USERNAME` from `.env` to determine which username to test against. Never hardcode a username in commands, commits, or code (see **Hard Rules** above).
 
 ---
 
@@ -72,10 +82,10 @@ tests/
 
 - **No `require()`** — ES modules only (`import`/`export`).
 - **No `axios`/`node-fetch`** — native `fetch` (built into Bun).
-- **No `@ts-ignore` or `as any`** — strict TypeScript throughout.
+- **No `@ts-ignore` or `as any`** — strict TypeScript throughout (see **Hard Rules**).
 - **Scraper resilience**: selectors try multiple fallbacks in order; year extraction scans both `<a href>` patterns and plain text nodes so it doesn't break if LJ restructures the toolbar.
 - **Commander v14 quirk**: `parseInt` cannot be passed directly as a Commander option parser because it receives two arguments (`value, previousDefault`). Use the local `parseIntOption` wrapper in `cli.ts`.
-- **No hard wrapping** — do not insert line breaks to wrap prose at a fixed column width. This applies everywhere: markdown files, commit messages, code comments, and any other written text. Let the editor or renderer handle soft wrapping. Hard wraps create noisy diffs when sentences are edited and serve no purpose in a modern toolchain.
+- **No hard wrapping** — do not insert line breaks to wrap prose at a fixed column width. This applies everywhere: markdown files, commit messages, code comments, and any other written text. Let the editor or renderer handle soft wrapping. Hard wraps create noisy diffs when sentences are edited and serve no purpose in a modern toolchain (see **Hard Rules**).
 
 ---
 
@@ -108,11 +118,11 @@ Tests use `bun:test` (`describe` / `it` / `expect`). **No real HTTP calls are ma
 bun test
 ```
 
-56 tests across 5 files should all pass in under 200 ms.
+67 tests across 5 files should all pass in under 200 ms.
 
 ### When testing the CLI against a live account
 
-Ensure `.env` has `LJ_USERNAME` set (see **Environment** above). When testing, create a subfolder within the repository's `test-output/` folder to have the CLI target.
+Ensure `.env` has `LJ_USERNAME` set (see **Environment** above). When testing, **always** use a subfolder within the repository's `test-output/` directory as the output target. Never write test output to directories outside the repo.
 
 Example:
 ```bash
@@ -138,17 +148,29 @@ Spot-check output files against the live site to verify correctness.
 - Days without entries are plain text numbers.
 
 ### Day page (`/{username}/{year}/{mm}/{dd}/`)
-- Each entry is a `div.entry` containing:
+
+LJ themes vary significantly in HTML structure. The scraper handles three extraction strategies in priority order:
+
+**S2 themes (most common)** — `div.entry` with semantic CSS classes:
   - `h4.subject` — entry title + timestamp (e.g. `(no subject) @ 04:34 pm`)
-  - `div.text` — entry body HTML, which contains:
+  - `div.text` or `div.entrytext` — entry body HTML, which contains:
     - `div.currents` — metadata block with mood/music/location as child divs
     - `div.currentmood` — mood text + an `<img class="meta-mood-img">` icon (stripped during conversion)
     - `div.currentmusic` — music text
     - `div.entry-content` — the actual post body
     - `div.clearer` — layout spacer with `&nbsp;` (stripped during conversion)
-  - `div.comments` — comment/reply links (stripped during conversion)
-- External links are wrapped by LJ through `https://www.livejournal.com/away?to=<encoded-url>` — unwrapped during conversion to point directly at the destination.
-- Falls back to scanning `h3 a / h2 a / h4 a` for entry permalink patterns if `div.entry` is absent.
+  - `div.comments` or `ul.entryextra` — comment/reply links (stripped during conversion)
+
+**S2 heading-based fallback** — scans `h3 a / h2 a / h4 a` for entry permalink URL patterns if `div.entry` is absent.
+
+**S1 themes (legacy table-based layouts)** — no semantic CSS classes. Entries are in nested `<table>` / `<font>` elements. The scraper finds entry permalink links (`username.livejournal.com/NNNNN.html`) and extracts surrounding content from the containing `<td>`.
+
+Comment/navigation links are detected and stripped by **URL pattern** (not link text), since LJ themes can customize link text to anything. The consistent URL patterns are:
+- View comments: `?view=comments#comments`
+- Post comment: `?mode=reply#add_comment`
+- Threaded comments: `?thread=`
+
+External links are wrapped by LJ through `https://www.livejournal.com/away?to=<encoded-url>` — unwrapped during conversion to point directly at the destination.
 
 ---
 
@@ -191,7 +213,7 @@ When debugging scraping or conversion issues, you may need to view the original 
 2. If not set, read `LJ_USERNAME` from the `.env` file in the project root.
 3. If neither exists, ask the user for a username to use.
 
-**Never commit any real usernames into the repository.** Test commands, commit messages, and code must not contain actual LiveJournal usernames.
+**Never commit any real usernames into the repository** (see **Hard Rules**). Test commands, commit messages, and code must not contain actual LiveJournal usernames.
 
 ### Navigating LiveJournal pages
 

@@ -45,7 +45,9 @@ export function extractEntriesFromHtml(html: string, username: string): JournalE
   }
 
   if (!entryElements || entryElements.length === 0) {
-    return extractEntriesFromTitleAnchors($, username);
+    const fromAnchors = extractEntriesFromTitleAnchors($, username);
+    if (fromAnchors.length > 0) return fromAnchors;
+    return extractEntriesFromPermalinks($, username);
   }
 
   entryElements.each((_i, el) => {
@@ -83,7 +85,7 @@ function parseEntryElement(
     time = timeEl.text().trim();
   }
 
-  const bodyEl = $el.find(".entry-content, .j-e-body, .entry-body, .text").first();
+  const bodyEl = $el.find(".entry-content, .j-e-body, .entry-body, .text, .entrytext").first();
   const content = bodyEl.length > 0 ? bodyEl.html() ?? "" : $el.html() ?? "";
 
   if (!content.trim()) return null;
@@ -118,6 +120,80 @@ function extractEntriesFromTitleAnchors(
   });
 
   return entries;
+}
+
+function extractEntriesFromPermalinks(
+  $: cheerio.CheerioAPI,
+  username: string
+): JournalEntry[] {
+  const entries: JournalEntry[] = [];
+  const entryPattern = new RegExp(`https?://${username}\\.livejournal\\.com/(\\d+)\\.html$`);
+  const seen = new Set<string>();
+
+  $("a").each((_i, el) => {
+    const $el = $(el);
+    const href = $el.attr("href") ?? "";
+    const match = entryPattern.exec(href);
+    if (!match) return;
+    if (seen.has(href)) return;
+    seen.add(href);
+
+    const subject = extractPermalinkSubject($el) || "(no subject)";
+
+    const $container = findEntryContainer($, $el);
+    if (!$container || $container.length === 0) return;
+
+    const time = extractPermalinkTime($container);
+    const content = extractPermalinkContent($, $container);
+
+    if (!content.trim()) return;
+
+    entries.push({ subject, time, url: href, content });
+  });
+
+  return entries;
+}
+
+function extractPermalinkSubject($el: cheerio.Cheerio<AnyNode>): string {
+  const linkText = $el.text().trim().replace(/^[\s\-–—]+/, "").trim();
+  if (linkText && linkText !== "(no subject)") return linkText;
+  return "";
+}
+
+function findEntryContainer(
+  $: cheerio.CheerioAPI,
+  $link: cheerio.Cheerio<AnyNode>
+): cheerio.Cheerio<AnyNode> | null {
+  let $candidate = $link.closest("td");
+  if ($candidate.length > 0) return $candidate;
+  $candidate = $link.parent();
+  for (let i = 0; i < 5 && $candidate.length > 0; i++) {
+    if ($candidate.is("td, div, article, section")) return $candidate;
+    $candidate = $candidate.parent();
+  }
+  return null;
+}
+
+function extractPermalinkTime($container: cheerio.Cheerio<AnyNode>): string {
+  const containerText = $container.text();
+  const timeMatch = /\b(\d{1,2}:\d{2}\s*(?:am|pm|[ap]))\b/i.exec(containerText);
+  return timeMatch?.[1] ?? "";
+}
+
+function extractPermalinkContent(
+  $: cheerio.CheerioAPI,
+  $container: cheerio.Cheerio<AnyNode>
+): string {
+  const $clone = $container.clone();
+  $clone.find("a").each((_i, el) => {
+    const href = $(el).attr("href") ?? "";
+    if (/[?&]mode=reply/i.test(href) || /[?&]view=comments/i.test(href) || /[?&]thread=/i.test(href)) {
+      $(el).closest("p, li, font").length > 0
+        ? $(el).closest("p, li").remove()
+        : $(el).remove();
+    }
+  });
+  return $clone.html() ?? "";
 }
 
 function resolveEntryUrl(href: string, username: string): string {

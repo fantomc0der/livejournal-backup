@@ -120,4 +120,55 @@ describe("extractEntriesFromHtml", () => {
     const entries = extractEntriesFromHtml(html, "user");
     expect(entries.length).toBeGreaterThan(0);
   });
+
+  it("extracts body from .entrytext selector (S2 themes like lafunnickita)", () => {
+    const html = `<html><body>
+      <div class="entry" id="entry315">
+        <table><tr><td>
+          <span class="entryheader"><a href="https://myusername.livejournal.com/315.html">this is me rambling</a> - 10:34 pm</span>
+        </td></tr></table>
+        <div class="entrytext">so my best friend has been in france...</div>
+        <div class="metadata"><table><tr><td>Current Mood: drained</td></tr></table></div>
+        <ul class="entryextra"><li class="entrypostlink"><a href="https://myusername.livejournal.com/315.html?mode=reply#add_comment">Leave a comment</a></li></ul>
+      </div>
+    </body></html>`;
+    const entries = extractEntriesFromHtml(html, "myusername");
+    expect(entries.length).toBe(1);
+    expect(entries[0]?.content).toContain("best friend");
+    expect(entries[0]?.content).not.toContain("mode=reply");
+    expect(entries[0]?.content).not.toContain("Leave a comment");
+  });
+
+  it("extracts entries from S1 theme (table-based layout with no semantic classes)", () => {
+    const html = `<html class="html-s1"><body>
+      <table><tr><td>
+        <font face="Verdana" size="2">
+          <b>8:25p</b><a href="https://testuser.livejournal.com/314.html"><b> - <font color="#FFFFFF">Me</font></b></a>
+        </font>
+        <br>
+        <font face="Verdana" size="2">Hey everyone!! This is my first post.</font>
+        <p align="RIGHT"><font face="Verdana" size="1">(<a href="https://testuser.livejournal.com/314.html?mode=reply#add_comment">comment on this</a>)</font></p>
+      </td></tr></table>
+    </body></html>`;
+    const entries = extractEntriesFromHtml(html, "testuser");
+    expect(entries.length).toBe(1);
+    expect(entries[0]?.url).toBe("https://testuser.livejournal.com/314.html");
+    expect(entries[0]?.subject).toBe("Me");
+  });
+
+  it("strips comment links from S1 theme content", () => {
+    const html = `<html class="html-s1"><body>
+      <table><tr><td>
+        <font face="Verdana" size="2">
+          <b>3:00p</b><a href="https://testuser.livejournal.com/500.html"><b> - <font>My Post</font></b></a>
+        </font>
+        <br>
+        <font face="Verdana" size="2">Post body content here</font>
+        <p align="RIGHT"><font size="1">(<a href="https://testuser.livejournal.com/500.html?mode=reply#add_comment">comment on this</a>)</font></p>
+      </td></tr></table>
+    </body></html>`;
+    const entries = extractEntriesFromHtml(html, "testuser");
+    expect(entries.length).toBe(1);
+    expect(entries[0]?.content).not.toContain("mode=reply");
+  });
 });
