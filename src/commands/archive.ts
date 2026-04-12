@@ -3,7 +3,7 @@ import { Logger } from "../utils/logger.ts";
 import { scrapeCalendar } from "../scrapers/calendar.ts";
 import { scrapeYear } from "../scrapers/year.ts";
 import { scrapeDay } from "../scrapers/day.ts";
-import { writeDayFile } from "../writers/file-writer.ts";
+import { writeDayFile, dayFileExists } from "../writers/file-writer.ts";
 
 export async function runArchive(options: ArchiveOptions): Promise<void> {
   const logger = new Logger(options.verbose);
@@ -25,22 +25,26 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
     const date: DateEntry = { year: options.year, month: options.month, day: options.day };
     logger.info(`Archiving single day: ${date.year}/${date.month}/${date.day}`);
 
-    const entries = await scrapeDay(
-      options.username,
-      date.year,
-      date.month,
-      date.day,
-      options.retries,
-      options.delay,
-      logger
-    );
-
-    if (entries.length > 0) {
-      await writeDayFile(options.outputDir, date, entries, options.skipExisting, logger);
-      totalEntries += entries.length;
-      totalDays++;
+    if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
+      logger.debug(`Skipping existing file for ${date.year}/${date.month}/${date.day}`);
     } else {
-      logger.debug(`No entries found for ${date.year}/${date.month}/${date.day}`);
+      const entries = await scrapeDay(
+        options.username,
+        date.year,
+        date.month,
+        date.day,
+        options.retries,
+        options.delay,
+        logger
+      );
+
+      if (entries.length > 0) {
+        await writeDayFile(options.outputDir, date, entries, logger);
+        totalEntries += entries.length;
+        totalDays++;
+      } else {
+        logger.debug(`No entries found for ${date.year}/${date.month}/${date.day}`);
+      }
     }
   } else {
     let years: number[];
@@ -90,6 +94,11 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
       for (const date of dates) {
         if (limitReached()) break;
 
+        if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
+          logger.debug(`Skipping existing file for ${date.year}/${date.month}/${date.day}`);
+          continue;
+        }
+
         const entries = await scrapeDay(
           options.username,
           date.year,
@@ -105,7 +114,6 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
             options.outputDir,
             date,
             entries,
-            options.skipExisting,
             logger
           );
           totalEntries += entries.length;

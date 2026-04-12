@@ -9,30 +9,27 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+export function getDayFilePath(outputDir: string, date: DateEntry): string {
+  const mm = String(date.month).padStart(2, "0");
+  const dd = String(date.day).padStart(2, "0");
+  const filename = `${date.year}-${mm}-${dd}.md`;
+  return join(outputDir, String(date.year), filename);
+}
+
+export async function dayFileExists(outputDir: string, date: DateEntry): Promise<boolean> {
+  return fileExists(getDayFilePath(outputDir, date));
+}
+
 export async function writeDayFile(
   outputDir: string,
   date: DateEntry,
   entries: JournalEntry[],
-  skipExisting: boolean,
   logger: Logger
 ): Promise<void> {
   if (entries.length === 0) return;
 
-  const yearDir = join(outputDir, String(date.year));
-  await mkdir(yearDir, { recursive: true });
-
-  const mm = String(date.month).padStart(2, "0");
-  const dd = String(date.day).padStart(2, "0");
-  const filename = `${date.year}-${mm}-${dd}.md`;
-  const filePath = join(yearDir, filename);
-
-  if (skipExisting) {
-    const exists = await fileExists(filePath);
-    if (exists) {
-      logger.debug(`Skipping existing file: ${filePath}`);
-      return;
-    }
-  }
+  const filePath = getDayFilePath(outputDir, date);
+  await mkdir(join(outputDir, String(date.year)), { recursive: true });
 
   const content = buildDayMarkdown(date, entries);
   await writeFile(filePath, content, "utf-8");

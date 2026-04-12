@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdir, rm, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { writeDayFile } from "../../src/writers/file-writer.ts";
+import { writeDayFile, dayFileExists, getDayFilePath } from "../../src/writers/file-writer.ts";
 import { Logger } from "../../src/utils/logger.ts";
 import type { JournalEntry, DateEntry } from "../../src/types.ts";
 
@@ -45,72 +45,76 @@ const sampleEntries: JournalEntry[] = [
   },
 ];
 
+describe("getDayFilePath", () => {
+  it("returns correct path with zero-padded month and day", () => {
+    const result = getDayFilePath("/output", { year: 2002, month: 3, day: 5 });
+    expect(result).toBe(join("/output", "2002", "2002-03-05.md"));
+  });
+
+  it("does not double-pad already two-digit month/day", () => {
+    const result = getDayFilePath("/output", { year: 2002, month: 11, day: 24 });
+    expect(result).toBe(join("/output", "2002", "2002-11-24.md"));
+  });
+});
+
+describe("dayFileExists", () => {
+  it("returns false when file does not exist", async () => {
+    expect(await dayFileExists(testDir, sampleDate)).toBe(false);
+  });
+
+  it("returns true after file is written", async () => {
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
+    expect(await dayFileExists(testDir, sampleDate)).toBe(true);
+  });
+});
+
 describe("writeDayFile", () => {
   it("creates the year directory if it does not exist", async () => {
-    await writeDayFile(testDir, sampleDate, sampleEntries, false, logger);
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
     const yearDir = join(testDir, "2002");
     expect(await pathExists(yearDir)).toBe(true);
   });
 
   it("creates a markdown file with correct name", async () => {
-    await writeDayFile(testDir, sampleDate, sampleEntries, false, logger);
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
     const filePath = join(testDir, "2002", "2002-01-24.md");
     expect(await pathExists(filePath)).toBe(true);
   });
 
   it("file starts with correct date heading", async () => {
-    await writeDayFile(testDir, sampleDate, sampleEntries, false, logger);
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
     const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
     expect(content).toMatch(/^# January 24, 2002/);
   });
 
   it("includes entry headings with time", async () => {
-    await writeDayFile(testDir, sampleDate, sampleEntries, false, logger);
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
     const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
     expect(content).toContain("## Entry 1 - 04:34 pm");
     expect(content).toContain("## Entry 2 - 05:26 pm");
   });
 
   it("includes entry body content", async () => {
-    await writeDayFile(testDir, sampleDate, sampleEntries, false, logger);
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
     const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
     expect(content).toContain("hey this is my first post here");
     expect(content).toContain("sitting around right now");
   });
 
   it("separates multiple entries with horizontal rule", async () => {
-    await writeDayFile(testDir, sampleDate, sampleEntries, false, logger);
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
     const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
     expect(content).toContain("---");
   });
 
   it("does nothing when entries array is empty", async () => {
-    await writeDayFile(testDir, sampleDate, [], false, logger);
+    await writeDayFile(testDir, sampleDate, [], logger);
     const filePath = join(testDir, "2002", "2002-01-24.md");
     expect(await pathExists(filePath)).toBe(false);
   });
 
-  it("skips existing file when skipExisting is true", async () => {
-    await writeDayFile(testDir, sampleDate, sampleEntries, false, logger);
-    const filePath = join(testDir, "2002", "2002-01-24.md");
-    const originalContent = await readFile(filePath, "utf-8");
-
-    const newEntries: JournalEntry[] = [
-      {
-        subject: "New Entry",
-        time: "12:00 pm",
-        url: "https://myusername.livejournal.com/999.html",
-        content: "<p>This should not be written</p>",
-      },
-    ];
-
-    await writeDayFile(testDir, sampleDate, newEntries, true, logger);
-    const afterContent = await readFile(filePath, "utf-8");
-    expect(afterContent).toBe(originalContent);
-  });
-
-  it("overwrites existing file when skipExisting is false", async () => {
-    await writeDayFile(testDir, sampleDate, sampleEntries, false, logger);
+  it("overwrites existing file", async () => {
+    await writeDayFile(testDir, sampleDate, sampleEntries, logger);
 
     const newEntries: JournalEntry[] = [
       {
@@ -121,7 +125,7 @@ describe("writeDayFile", () => {
       },
     ];
 
-    await writeDayFile(testDir, sampleDate, newEntries, false, logger);
+    await writeDayFile(testDir, sampleDate, newEntries, logger);
     const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
     expect(content).toContain("New content");
     expect(content).not.toContain("hey this is my first post here");
@@ -137,7 +141,7 @@ describe("writeDayFile", () => {
         content: "<p>test</p>",
       },
     ];
-    await writeDayFile(testDir, date, entries, false, logger);
+    await writeDayFile(testDir, date, entries, logger);
     const filePath = join(testDir, "2002", "2002-03-05.md");
     expect(await pathExists(filePath)).toBe(true);
   });
@@ -151,7 +155,7 @@ describe("writeDayFile", () => {
         content: "<p>body text</p>",
       },
     ];
-    await writeDayFile(testDir, sampleDate, entries, false, logger);
+    await writeDayFile(testDir, sampleDate, entries, logger);
     const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
     expect(content).toContain("### My Great Post");
   });
