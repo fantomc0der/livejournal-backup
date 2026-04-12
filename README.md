@@ -69,6 +69,7 @@ Options:
   --output <dir>      Output directory (default: ./archive)
   --verbose           Enable verbose logging
   --skip-existing     Skip dates that already have a markdown file
+  --dry-run           Show what would be archived without downloading or writing files
   -h, --help          Display help
   -V, --version       Display version
 ```
@@ -92,6 +93,12 @@ bun run src/index.ts archive otherusername --year 2005
 
 # Archive only the first 5 days (useful for quick testing)
 bun run src/index.ts archive --limit 5
+
+# Dry run — see what would be archived without writing any files
+bun run src/index.ts archive --dry-run
+
+# Dry run for a specific year
+bun run src/index.ts archive --year 2002 --dry-run
 ```
 
 ## Output Structure

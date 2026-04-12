@@ -104,6 +104,7 @@ Options:
   --output <dir>      Output directory (default: ./archive)
   --verbose           Enable debug-level logging
   --skip-existing     Skip dates that already have a .md file
+  --dry-run           Show what would be archived without downloading or writing files
 ```
 
 The `username` argument is optional. If omitted, the CLI reads `LJ_USERNAME` from `.env`. A CLI argument always takes priority over the env value.

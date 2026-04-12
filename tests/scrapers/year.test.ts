@@ -113,4 +113,22 @@ describe("extractDatesFromHtml", () => {
     const dates = extractDatesFromHtml(html, 2002);
     expect(dates).toEqual([]);
   });
+
+  it("extracts entry count from link text like '24 (2)'", () => {
+    const dates = extractDatesFromHtml(MOCK_YEAR_HTML, 2002);
+    const jan3 = dates.find((d) => d.month === 1 && d.day === 3);
+    expect(jan3?.entryCount).toBe(1);
+    const jan24 = dates.find((d) => d.month === 1 && d.day === 24);
+    expect(jan24?.entryCount).toBe(2);
+    const feb14 = dates.find((d) => d.month === 2 && d.day === 14);
+    expect(feb14?.entryCount).toBe(3);
+  });
+
+  it("sets entryCount to undefined when link text has no count", () => {
+    const html = `<html><body>
+      <a href="/2002/01/05/">5</a>
+    </body></html>`;
+    const dates = extractDatesFromHtml(html, 2002);
+    expect(dates[0]?.entryCount).toBeUndefined();
+  });
 });

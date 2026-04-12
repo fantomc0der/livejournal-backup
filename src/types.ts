@@ -16,10 +16,12 @@ export interface ArchiveOptions {
   outputDir: string;
   verbose: boolean;
   skipExisting: boolean;
+  dryRun: boolean;
 }
 
 export interface DateEntry {
   year: number;
   month: number;
   day: number;
+  entryCount?: number;
 }

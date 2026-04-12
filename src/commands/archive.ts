@@ -3,13 +3,17 @@ import { Logger } from "../utils/logger.ts";
 import { scrapeCalendar } from "../scrapers/calendar.ts";
 import { scrapeYear } from "../scrapers/year.ts";
 import { scrapeDay } from "../scrapers/day.ts";
-import { writeDayFile, dayFileExists } from "../writers/file-writer.ts";
+import { writeDayFile, dayFileExists, getDayFilePath } from "../writers/file-writer.ts";
 
 export async function runArchive(options: ArchiveOptions): Promise<void> {
   const logger = new Logger(options.verbose);
 
   logger.info(`Starting archive for user: ${options.username}`);
-  logger.info(`Output directory: ${options.outputDir}`);
+  if (options.dryRun) {
+    logger.info("Dry run mode — no files will be written");
+  } else {
+    logger.info(`Output directory: ${options.outputDir}`);
+  }
   if (options.limit !== undefined) {
     logger.info(`Limit: ${options.limit} day(s)`);
   }
@@ -21,29 +25,48 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
     options.limit !== undefined && totalDays >= options.limit;
 
   if (options.day !== undefined && options.month !== undefined && options.year !== undefined) {
-    // Single-day mode: skip calendar/year scraping entirely
     const date: DateEntry = { year: options.year, month: options.month, day: options.day };
-    logger.info(`Archiving single day: ${date.year}/${date.month}/${date.day}`);
 
-    if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
-      logger.debug(`Skipping existing file for ${date.year}/${date.month}/${date.day}`);
-    } else {
-      const entries = await scrapeDay(
+    if (options.dryRun) {
+      // In single-day dry run, we need the year page to get the entry count
+      const datesForYear = await scrapeYear(
         options.username,
-        date.year,
-        date.month,
-        date.day,
+        options.year,
         options.retries,
         options.delay,
         logger
       );
-
-      if (entries.length > 0) {
-        await writeDayFile(options.outputDir, date, entries, logger);
-        totalEntries += entries.length;
+      const matched = datesForYear.find((d) => d.month === options.month && d.day === options.day);
+      if (matched) {
+        logDryRunEntry(logger, options.outputDir, matched);
+        totalEntries += matched.entryCount ?? 0;
         totalDays++;
       } else {
-        logger.debug(`No entries found for ${date.year}/${date.month}/${date.day}`);
+        logger.info(`No entries found for ${date.year}/${date.month}/${date.day}`);
+      }
+    } else {
+      logger.info(`Archiving single day: ${date.year}/${date.month}/${date.day}`);
+
+      if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
+        logger.debug(`Skipping existing file for ${date.year}/${date.month}/${date.day}`);
+      } else {
+        const entries = await scrapeDay(
+          options.username,
+          date.year,
+          date.month,
+          date.day,
+          options.retries,
+          options.delay,
+          logger
+        );
+
+        if (entries.length > 0) {
+          await writeDayFile(options.outputDir, date, entries, logger);
+          totalEntries += entries.length;
+          totalDays++;
+        } else {
+          logger.debug(`No entries found for ${date.year}/${date.month}/${date.day}`);
+        }
       }
     }
   } else {
@@ -94,6 +117,13 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
       for (const date of dates) {
         if (limitReached()) break;
 
+        if (options.dryRun) {
+          logDryRunEntry(logger, options.outputDir, date);
+          totalEntries += date.entryCount ?? 0;
+          totalDays++;
+          continue;
+        }
+
         if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
           logger.debug(`Skipping existing file for ${date.year}/${date.month}/${date.day}`);
           continue;
@@ -128,5 +158,19 @@ export async function runArchive(options: ArchiveOptions): Promise<void> {
   if (limitReached()) {
     logger.info(`Limit of ${options.limit} day(s) reached`);
   }
-  logger.info(`Archive complete: ${totalEntries} entries across ${totalDays} days`);
+
+  if (options.dryRun) {
+    logger.info(`Dry run complete: ${totalEntries} entries across ${totalDays} days`);
+  } else {
+    logger.info(`Archive complete: ${totalEntries} entries across ${totalDays} days`);
+  }
+}
+
+function logDryRunEntry(logger: Logger, outputDir: string, date: DateEntry): void {
+  const filePath = getDayFilePath(outputDir, date);
+  const count = date.entryCount;
+  const countLabel = count !== undefined
+    ? `${count} ${count === 1 ? "entry" : "entries"}`
+    : "unknown entries";
+  logger.log(`${filePath}  (${countLabel})`);
 }

@@ -29,6 +29,7 @@ export function buildCli(): Command {
     .option("--verbose", "Enable verbose logging", false)
     .option("--limit <n>", "Max number of days to archive (omit for no limit)", parseIntOption)
     .option("--skip-existing", "Skip dates that already have a markdown file", false)
+    .option("--dry-run", "Show what would be archived without downloading or writing files", false)
     .action(async (usernameArg: string | undefined, opts: {
       year?: number;
       month?: number;
@@ -39,6 +40,7 @@ export function buildCli(): Command {
       output: string;
       verbose: boolean;
       skipExisting: boolean;
+      dryRun: boolean;
     }) => {
       const username = usernameArg || process.env.LJ_USERNAME;
 
@@ -68,6 +70,7 @@ export function buildCli(): Command {
         outputDir: opts.output,
         verbose: opts.verbose,
         skipExisting: opts.skipExisting,
+        dryRun: opts.dryRun,
       });
     });
 
