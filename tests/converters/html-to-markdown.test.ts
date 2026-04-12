@@ -117,6 +117,38 @@ describe("htmlToMarkdown", () => {
     expect(result).toContain("![my photo](https://example.com/photo.jpg)");
   });
 
+  it("strips LJ clearer divs", () => {
+    const html = `
+      <div class="entry-content">some text</div>
+      <div class="clearer">&nbsp;</div>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toBe("some text");
+  });
+
+  it("converts non-breaking spaces to regular spaces", () => {
+    const result = htmlToMarkdown("<p>hello\u00A0world</p>");
+    expect(result).toBe("hello world");
+  });
+
+  it("handles real LJ entry structure with currents and clearer", () => {
+    const html = `
+      <div class="currents">
+        <div class="currentmood"><strong>Current Mood:</strong> <img src="https://imgprx.livejournal.net/abc" alt="happy" class="meta-mood-img" align="middle" /> happy</div>
+        <div class="currentmusic"><strong>Current Music:</strong> some band - some song</div>
+      </div>
+      <br />
+      <div class="entry-content">this is my post</div>
+      <div class="clearer">&nbsp;</div>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("**Current Mood:** happy");
+    expect(result).toContain("**Current Music:** some band - some song");
+    expect(result).toContain("this is my post");
+    expect(result).not.toContain("![");
+    expect(result).not.toMatch(/^\s+$/m);
+  });
+
   it("collapses multiple blank lines to at most two", () => {
     const html = "<p>First</p><p></p><p></p><p></p><p>Second</p>";
     const result = htmlToMarkdown(html);

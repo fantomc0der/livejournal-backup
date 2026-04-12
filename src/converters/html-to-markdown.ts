@@ -38,6 +38,15 @@ function createTurndownService(): TurndownService {
     replacement: () => "",
   });
 
+  td.addRule("remove-lj-clearer", {
+    filter: (node) => {
+      if (node.nodeName !== "DIV") return false;
+      const el = node as HTMLElement;
+      return el.className === "clearer";
+    },
+    replacement: () => "",
+  });
+
   td.addRule("remove-lj-nav-spans", {
     filter: (node) => {
       if (!["SPAN", "DIV", "P"].includes(node.nodeName)) return false;
@@ -56,7 +65,9 @@ export function htmlToMarkdown(html: string): string {
   if (!html.trim()) return "";
   const md = turndownService.turndown(html);
   return md
+    .replace(/\u00A0/g, " ")
     .replace(/ {2,}/g, " ")
+    .replace(/^\s+$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
