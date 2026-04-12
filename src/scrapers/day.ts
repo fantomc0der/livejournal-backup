@@ -4,6 +4,15 @@ import { fetchWithRetry, sleep } from "../utils/http.ts";
 import type { Logger } from "../utils/logger.ts";
 import type { JournalEntry } from "../types.ts";
 
+const LJ_NAV_URL_PATTERNS = [
+  /[?&]mode=reply/i,
+  /[?&]view=comments/i,
+  /[?&]thread=/i,
+  /livejournal\.com\/update\.bml/i,
+  /livejournal\.com\/tools\/content_flag\.bml/i,
+  /livejournal\.com\/allpics\.bml/i,
+];
+
 export async function scrapeDay(
   username: string,
   year: number,
@@ -29,6 +38,7 @@ export function extractEntriesFromHtml(html: string, username: string): JournalE
   const entrySelectors = [
     ".entry",
     "div.entry",
+    ".entryHolder",
     "article.entry",
     "article",
     ".j-e-body",
@@ -81,12 +91,19 @@ function parseEntryElement(
     time = timeMatch?.[1] ?? "";
   }
   if (!time) {
-    const timeEl = $el.find(".time, time, .entry-time, .datetime").first();
+    const timeEl = $el.find(".time, time, .entry-time, .datetime, .entryHeaderDate").first();
     time = timeEl.text().trim();
   }
 
-  const bodyEl = $el.find(".entry-content, .j-e-body, .entry-body, .text, .entrytext").first();
-  const content = bodyEl.length > 0 ? bodyEl.html() ?? "" : $el.html() ?? "";
+  const bodySelectors = ".entry-content, .j-e-body, .entry-body, .text, .entrytext, .entryText, .s2-entrytext";
+  const bodyEl = $el.find(bodySelectors).first();
+
+  let content: string;
+  if (bodyEl.length > 0) {
+    content = bodyEl.html() ?? "";
+  } else {
+    content = stripLjChrome($, $el.clone(), username);
+  }
 
   if (!content.trim()) return null;
 
@@ -144,7 +161,7 @@ function extractEntriesFromPermalinks(
     if (!$container || $container.length === 0) return;
 
     const time = extractPermalinkTime($container);
-    const content = extractPermalinkContent($, $container);
+    const content = stripLjChrome($, $container.clone(), username);
 
     if (!content.trim()) return;
 
@@ -180,20 +197,59 @@ function extractPermalinkTime($container: cheerio.Cheerio<AnyNode>): string {
   return timeMatch?.[1] ?? "";
 }
 
-function extractPermalinkContent(
+function stripLjChrome(
   $: cheerio.CheerioAPI,
-  $container: cheerio.Cheerio<AnyNode>
+  $clone: cheerio.Cheerio<AnyNode>,
+  username: string
 ): string {
-  const $clone = $container.clone();
+  const permalinkPattern = new RegExp(`https?://${username}\\.livejournal\\.com/\\d+\\.html$`);
+
   $clone.find("a").each((_i, el) => {
     const href = $(el).attr("href") ?? "";
-    if (/[?&]mode=reply/i.test(href) || /[?&]view=comments/i.test(href) || /[?&]thread=/i.test(href)) {
-      $(el).closest("p, li, font").length > 0
-        ? $(el).closest("p, li").remove()
-        : $(el).remove();
+    if (isLjNavUrl(href)) {
+      removeWithContainer($, $(el));
     }
   });
+
+  $clone.find("a").each((_i, el) => {
+    const href = $(el).attr("href") ?? "";
+    if (/allpics\.bml/i.test(href)) {
+      $(el).remove();
+    }
+  });
+
+  $clone.find(".ljuser, .i-ljuser, [data-ljuser]").each((_i, el) => {
+    $(el).remove();
+  });
+
+  $clone.find("a").each((_i, el) => {
+    const href = $(el).attr("href") ?? "";
+    if (permalinkPattern.test(href)) {
+      removeWithContainer($, $(el));
+    }
+  });
+
+  $clone.find('a[href^="#"]').each((_i, el) => {
+    removeWithContainer($, $(el));
+  });
+
   return $clone.html() ?? "";
+}
+
+function isLjNavUrl(href: string): boolean {
+  return LJ_NAV_URL_PATTERNS.some((p) => p.test(href));
+}
+
+function removeWithContainer($: cheerio.CheerioAPI, $el: cheerio.Cheerio<AnyNode>): void {
+  const $parent = $el.parent();
+  if ($parent.length > 0 && ["li", "p", "font"].includes($parent.prop("tagName")?.toLowerCase() ?? "")) {
+    const siblingText = $parent.contents().filter((_i, node) => node !== $el.get(0)).text().trim().replace(/[|•·()]/g, "").trim();
+    if (siblingText.length === 0) {
+      $parent.remove();
+      return;
+    }
+  }
+  $el.remove();
 }
 
 function resolveEntryUrl(href: string, username: string): string {

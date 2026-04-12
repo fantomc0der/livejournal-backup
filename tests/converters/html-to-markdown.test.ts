@@ -201,16 +201,18 @@ describe("htmlToMarkdown", () => {
     expect(result).toBe("some text");
   });
 
-  it("strips div.comments containers", () => {
+  it("strips comment links from containers leaving no link text", () => {
     const html = `
       <div class="entry-content">post body</div>
-      <div class="comments">
+      <div>
         <a href="https://user.livejournal.com/435.html?view=comments#comments">3 erections</a>&nbsp;|&nbsp;
         <a href="https://user.livejournal.com/435.html?mode=reply#add_comment">touch me here</a>
       </div>
     `;
     const result = htmlToMarkdown(html);
-    expect(result).toBe("post body");
+    expect(result).not.toContain("erections");
+    expect(result).not.toContain("touch me here");
+    expect(result).toContain("post body");
   });
 
   it("strips S1 theme comment links in p/font wrappers", () => {

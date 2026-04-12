@@ -1,24 +1,18 @@
 import TurndownService from "turndown";
 
-const LJ_COMMENT_URL_PATTERNS = [
-  /livejournal\.com\/\d+\.html\?mode=reply/i,
-  /livejournal\.com\/\d+\.html\?view=comments/i,
-  /livejournal\.com\/\d+\.html\?thread=/i,
+const LJ_NAV_URL_PATTERNS = [
   /\?mode=reply/i,
   /\?view=comments/i,
-];
-
-const LJ_NAV_CONTAINER_CLASSES = [
-  "comments",
-  "entryextra",
-  "entryreadlink",
-  "entrypostlink",
+  /[?&]thread=/i,
+  /livejournal\.com\/update\.bml/i,
+  /livejournal\.com\/tools\/content_flag\.bml/i,
+  /livejournal\.com\/allpics\.bml/i,
 ];
 
 const LJ_METADATA_LABELS = /Current\s+(Mood|Music|Location):/i;
 
-function isLjCommentLink(href: string): boolean {
-  return LJ_COMMENT_URL_PATTERNS.some((p) => p.test(href));
+function isLjNavLink(href: string): boolean {
+  return LJ_NAV_URL_PATTERNS.some((p) => p.test(href));
 }
 
 function containsOnlyLjNavLinks(node: Node): boolean {
@@ -28,10 +22,10 @@ function containsOnlyLjNavLinks(node: Node): boolean {
   const linkText = Array.from(links)
     .map((a) => (a.textContent ?? "").replace(/\s+/g, "").trim())
     .join("");
-  const nonLinkText = textWithoutLinks.replace(new RegExp(linkText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "").replace(/[|()]/g, "").trim();
+  const nonLinkText = textWithoutLinks.replace(new RegExp(linkText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "").replace(/[|()\u00A0·•\-–—]/g, "").trim();
   return (
     nonLinkText.length === 0 &&
-    Array.from(links).every((a) => isLjCommentLink(a.getAttribute("href") ?? ""))
+    Array.from(links).every((a) => isLjNavLink(a.getAttribute("href") ?? ""))
   );
 }
 
@@ -46,7 +40,7 @@ function createTurndownService(): TurndownService {
     filter: (node) => {
       if (node.nodeName !== "A") return false;
       const href = (node as HTMLAnchorElement).getAttribute("href") ?? "";
-      return isLjCommentLink(href);
+      return isLjNavLink(href);
     },
     replacement: () => "",
   });
@@ -92,12 +86,7 @@ function createTurndownService(): TurndownService {
 
   td.addRule("remove-lj-nav-containers", {
     filter: (node) => {
-      if (!["UL", "DIV", "SPAN", "P", "LI"].includes(node.nodeName)) return false;
-      const el = node as HTMLElement;
-      const className = el.className ?? "";
-      if (LJ_NAV_CONTAINER_CLASSES.some((cls) => className.split(/\s+/).includes(cls))) {
-        return true;
-      }
+      if (!["UL", "DIV", "SPAN", "P", "LI", "TABLE"].includes(node.nodeName)) return false;
       if ((node.textContent?.length ?? 0) < 200) {
         return containsOnlyLjNavLinks(node);
       }
