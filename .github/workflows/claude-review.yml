@@ -29,6 +29,9 @@ jobs:
       - uses: anthropics/claude-code-action@v1.0.88
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          base_branch: ${{ github.event.pull_request.base.ref }}
+          use_sticky_comment: true
+          include_fix_links: true
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}

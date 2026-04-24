@@ -1,0 +1,33 @@
+name: Claude PR Fix
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  fix:
+    # Only run on PR comments that contain @claude, and never when Claude itself is the commenter (loop guard)
+    if: |
+      github.event.comment.user.login != 'claude' &&
+      ((github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.PR_AUTOMATION_PAT }}
+      # Pinned to v1.0.88 for the same reason as claude-review.yml — v1.0.89+ crashes on
+      # repos where CLAUDE.md is a git symlink (cpSync ENOENT bug, issue #1187).
+      # Bump to first release containing PR #1186 once it merges (expected v1.0.106+).
+      - uses: anthropics/claude-code-action@v1.0.88
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.PR_AUTOMATION_PAT }}
+          base_branch: ${{ github.event.pull_request.base.ref }}
