@@ -1,7 +1,7 @@
 name: Auto Merge PR
 on:
   workflow_run:
-    workflows: ["CI", "Claude PR Review"]
+    workflows: ["CI Build", "Claude PR Review"]
     types: [completed]
 
 concurrency:
@@ -11,7 +11,7 @@ concurrency:
 jobs:
   gate:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
     permissions:
       contents: write
       pull-requests: write
@@ -28,7 +28,7 @@ jobs:
       - name: Evaluate gate and merge
         if: steps.pr.outputs.pr_number != ''
         env:
-          GH_TOKEN: ${{ secrets.AUTO_MERGE_PAT }}
+          GH_TOKEN: ${{ secrets.PR_AUTOMATION_PAT }}
           PR: ${{ steps.pr.outputs.pr_number }}
           REPO: ${{ github.repository }}
           TRIGGERED_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -77,6 +77,10 @@ jobs:
             exit 0
           fi
 
-          echo "All conditions met - approving and merging"
-          gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approved: Claude review passed and all checks succeeded."
+          echo "All conditions met - merging"
+          # Approval step disabled: branch protection's required-approvals rule is off, and a PAT
+          # cannot submit an approving review on its author's own PR (GitHub forbids self-approval
+          # with no override). Revisit if we switch PR_AUTOMATION_PAT to a GitHub App token, which
+          # would act as a separate identity and be allowed to approve.
+          # gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approved: Claude review passed and all checks succeeded."
           gh pr merge "$PR" --repo "$REPO" --squash --delete-branch

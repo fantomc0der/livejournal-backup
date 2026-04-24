@@ -77,7 +77,7 @@ tests/
   scrapers/                   # Unit tests for each scraper (no real HTTP calls)
   converters/                 # Unit tests for html-to-markdown
   writers/                    # Unit tests for file-writer
-.github/workflows/ci.yml      # CI: bun install → bun test → bun run build
+.github/workflows/ci-build.yml  # CI Build: bun install → bun test → bun run build
 ```
 
 ---
@@ -268,7 +268,7 @@ To inspect the raw HTML that the tool will scrape, fetch the day page URL direct
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push and PR:
+GitHub Actions (`.github/workflows/ci-build.yml`, workflow name "CI Build") runs on every push and PR:
 1. `bun install`
 2. `bun test`
 3. `bun run build`

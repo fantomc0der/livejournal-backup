@@ -11,7 +11,7 @@ jobs:
       pull-requests: write
     steps:
       - env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PR_AUTOMATION_PAT }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
@@ -24,4 +24,4 @@ jobs:
               }
             }
           ' -f id="$pr_node_id"
-          gh pr comment "$PR" --repo "$REPO" --body "Auto-converted to draft. Mark as **Ready for Review** when the PR is finished — that will trigger Claude review and the auto-merge gate."
+          gh pr comment "$PR" --repo "$REPO" --body "Auto-converted PR to **Draft**. Mark as **Ready for Review** when the PR is finished to trigger Claude review and the auto-merge gate."

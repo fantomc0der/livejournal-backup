@@ -15,7 +15,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - uses: anthropics/claude-code-action@v1
+      # Pinned to v1.0.88 (released 2026-04-04) — the release immediately before the regression.
+      # v1.0.89 (2026-04-05) introduced a snapshot step that calls fs.cpSync without
+      # dereference:true on sensitive paths (CLAUDE.md, .claude/, .mcp.json, .gitmodules, ...),
+      # which crashes with `ENOENT: no such file or directory, symlink` when any of those paths
+      # is a git symlink. CLAUDE.md here is a symlink to AGENTS.md, so every release from v1.0.89
+      # through at least v1.0.105 is broken for this repo.
+      #
+      # Bug:  https://github.com/anthropics/claude-code-action/issues/1187
+      # Fix:  https://github.com/anthropics/claude-code-action/pull/1186  (open, unmerged as of 2026-04-24)
+      #
+      # Bump to the first release that contains PR #1186 once it merges (expected v1.0.106+).
+      - uses: anthropics/claude-code-action@v1.0.88
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
