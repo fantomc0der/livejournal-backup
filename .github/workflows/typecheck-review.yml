@@ -23,13 +23,22 @@ jobs:
           TSC_OUTPUT: ${{ steps.tsc.outputs.output }}
         with:
           script: |
+            const crypto = require('crypto');
             const marker = '<!-- typecheck-review -->';
             const raw = process.env.TSC_OUTPUT || '';
             const sha = context.payload.pull_request.head.sha;
+            const prUrl = context.payload.pull_request.html_url;
             const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
 
+            // GitHub PR diff anchors are `diff-<sha256(filepath)>`
+            const diffAnchor = (path) =>
+              `diff-${crypto.createHash('sha256').update(path).digest('hex')}`;
+
+            // Wrap single-quoted segments in backticks so types like 'string | undefined' render as code.
+            const codifyQuotes = (text) => text.replace(/'([^']+)'/g, '`$1`');
+
             const errorRe = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.+)$/;
-            const errors = [];
+            const rawErrors = [];
             let current = null;
             for (const line of raw.split('\n')) {
               if (line.startsWith('$ ')) continue; // bun command echo
@@ -43,36 +52,61 @@ jobs:
                   message: m[5],
                   details: [],
                 };
-                errors.push(current);
+                rawErrors.push(current);
               } else if (current && line.trim()) {
                 current.details.push(line.trim());
               }
             }
 
+            // Merge identical errors (same file/line/code/message/details). tsc legitimately reports
+            // the same diagnostic twice when the problem token appears twice on one line (and again
+            // when multiple tsconfigs share a file), so collapse them with a ×N count to stop the
+            // comment looking like a dedup bug.
+            const errors = [];
+            const seen = new Map();
+            for (const e of rawErrors) {
+              const key = `${e.file}|${e.line}|${e.code}|${e.message}|${e.details.join('\n')}`;
+              const hit = seen.get(key);
+              if (hit) {
+                hit.count++;
+              } else {
+                const entry = { ...e, count: 1 };
+                seen.set(key, entry);
+                errors.push(entry);
+              }
+            }
+            const rawCount = rawErrors.length;
+
             let body;
             if (errors.length === 0) {
-              body = `${marker}\n### TypeScript\n:white_check_mark: No errors found.`;
+              body = `${marker}\n### TypeScript Review\n:white_check_mark: No TypeScript errors were found in these changes`;
             } else {
               const byFile = new Map();
               for (const e of errors) {
                 if (!byFile.has(e.file)) byFile.set(e.file, []);
                 byFile.get(e.file).push(e);
               }
-              const errWord = errors.length === 1 ? 'error' : 'errors';
+              const errWord = rawCount === 1 ? 'error' : 'errors';
               const fileWord = byFile.size === 1 ? 'file' : 'files';
               const parts = [
                 marker,
-                `### :x: TypeScript — ${errors.length} ${errWord} in ${byFile.size} ${fileWord}`,
+                `### TypeScript Review`,
+                `:x: Found ${rawCount} ${errWord} across ${byFile.size} ${fileWord}`,
                 '',
               ];
               for (const [file, errs] of byFile) {
-                parts.push(`<details open><summary><code>${file}</code> — ${errs.length} ${errs.length === 1 ? 'error' : 'errors'}</summary>`);
+                const fileHref = `${prUrl}/files#${diffAnchor(file)}`;
+                const fileTotal = errs.reduce((n, e) => n + e.count, 0);
+                const countLabel = `${fileTotal} ${fileTotal === 1 ? 'error' : 'errors'}`;
+                parts.push(`<details open><summary>📄 <a href="${fileHref}">${file}</a> — ${countLabel}</summary>`);
                 parts.push('');
                 for (const e of errs) {
-                  const href = `https://github.com/${repoSlug}/blob/${sha}/${file}#L${e.line}`;
-                  parts.push(`- [\`${e.line}:${e.col}\`](${href}) **${e.code}** — ${e.message}`);
+                  const lineHref = `https://github.com/${repoSlug}/blob/${sha}/${file}#L${e.line}`;
+                  const message = codifyQuotes(e.message);
+                  const dupTag = e.count > 1 ? ` ×${e.count}` : '';
+                  parts.push(`- **${e.code}** ([on L${e.line}](${lineHref})${dupTag}) — ${message}`);
                   for (const d of e.details) {
-                    parts.push(`  - ${d}`);
+                    parts.push(`  - ${codifyQuotes(d)}`);
                   }
                 }
                 parts.push('');
