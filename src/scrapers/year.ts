@@ -33,7 +33,7 @@ export function extractDatesFromHtml(html: string, year: number): DateEntry[] {
       if (!dateMap.has(key)) {
         const text = $(el).text().trim();
         const countMatch = /\((\d+)\)/.exec(text);
-        const entryCount = countMatch ? parseInt(countMatch[1], 10) : undefined;
+        const entryCount = countMatch?.[1] !== undefined ? parseInt(countMatch[1], 10) : undefined;
         dateMap.set(key, { year, month, day, entryCount });
       }
     }

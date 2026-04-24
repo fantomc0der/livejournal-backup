@@ -6,7 +6,8 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "test": "bun test",
-    "build": "bun build src/index.ts --target bun --outfile dist/livejournal-backup.js"
+    "build": "bun build src/index.ts --target bun --outfile dist/livejournal-backup.js",
+    "typecheck": "tsc --noEmit && tsc --noEmit --project tsconfig.test.json"
   },
   "devDependencies": {
     "@types/bun": "latest",

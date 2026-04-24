@@ -1,4 +1,5 @@
 {
+  "exclude": ["tests"],
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],
     "target": "ESNext",

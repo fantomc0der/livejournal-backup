@@ -6,5 +6,6 @@
 .output/
 node_modules/
 dist/
+*.tsbuildinfo
 test-output/
 archive/
