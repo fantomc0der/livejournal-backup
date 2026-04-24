@@ -52,32 +52,38 @@ Bun loads `.env` automatically — no extra dependencies required.
 ```
 .env.example                  # Environment variable template (committed)
 .env                          # Local env values — gitignored, never committed
+.github/workflows/
+  ci-build.yml                # CI Build: bun install → bun test → bun run build
+  typecheck-review.yml        # Posts/updates a PR comment with any tsc errors on the diff
+  claude-review.yml           # LLM review on PR ready-for-review (see docs/pr-automation.md)
+  enforce-draft.yml           # Auto-converts new PRs to draft (see docs/pr-automation.md)
+  auto-merge.yml              # Squash-merge gate after CI + Claude review (see docs/pr-automation.md)
 src/
   index.ts                    # Entry point — wires CLI
   cli.ts                      # Commander setup, option parsing
   types.ts                    # Shared interfaces: JournalEntry, ArchiveOptions, DateEntry
   commands/
     archive.ts                # Orchestrates the full scrape-and-write flow
+  converters/
+    html-to-markdown.ts       # Turndown-based HTML→Markdown with LJ artifact stripping
   scrapers/
     calendar.ts               # Fetches /{username}/calendar/ → extracts available years
     year.ts                   # Fetches /{username}/{year}/ → extracts dates with entries
     day.ts                    # Fetches /{username}/{year}/{mm}/{dd}/ → extracts entries
-  converters/
-    html-to-markdown.ts       # Turndown-based HTML→Markdown with LJ artifact stripping
-  writers/
-    file-writer.ts            # Writes {outputDir}/{year}/{YYYY}-{MM}-{DD}.md
-  utils/
-    http.ts                   # fetchWithRetry with exponential backoff + sleep
-    logger.ts                 # Leveled logger (verbose/info/warn/error/debug)
   tui/
     tty.ts                    # isTTY() — checks whether stdout is an interactive terminal
     logger.ts                 # TuiLogger (extends Logger) — routes log calls through clack/spinners/progress
     progress.ts               # dualProgress — two-line progress bar renderer (info line + bar line)
+  utils/
+    date.ts                   # LocalDate helpers: parseIsoDate, addDays, compareDate
+    http.ts                   # fetchWithRetry with exponential backoff + sleep
+    logger.ts                 # Leveled logger (verbose/info/warn/error/debug)
+  writers/
+    file-writer.ts            # Writes {outputDir}/{year}/{YYYY}-{MM}-{DD}.md
 tests/
   scrapers/                   # Unit tests for each scraper (no real HTTP calls)
   converters/                 # Unit tests for html-to-markdown
   writers/                    # Unit tests for file-writer
-.github/workflows/ci-build.yml  # CI Build: bun install → bun test → bun run build
 ```
 
 ---
@@ -274,3 +280,12 @@ GitHub Actions (`.github/workflows/ci-build.yml`, workflow name "CI Build") runs
 3. `bun run build`
 
 No publishing step — this project is not distributed to a registry.
+
+In addition to CI, the repo has four PR-automation workflows:
+
+- **`typecheck-review.yml`** — runs `bun run typecheck` against the PR and posts a single updating comment listing any tsc errors grouped by file, with deep links into the diff. Independent of the Claude review flow.
+- **`enforce-draft.yml`** — on `pull_request: opened`, converts any non-draft PR to a draft so the merge gate never fires on in-progress work.
+- **`claude-review.yml`** — runs `anthropics/claude-code-action` on a ready-for-review PR. Posts inline comments and a summary ending in `REVIEW: PASS` or `REVIEW: FAIL`.
+- **`auto-merge.yml`** — triggered by `workflow_run` completion of `CI` or `Claude PR Review`. Approves and squash-merges the PR only if every gate passes.
+
+See `docs/pr-automation.md` for the full happy path, required secrets, and the bypass procedure.
