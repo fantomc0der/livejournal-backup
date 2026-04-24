@@ -1,0 +1,82 @@
+name: Auto Merge PR
+on:
+  workflow_run:
+    workflows: ["CI", "Claude PR Review"]
+    types: [completed]
+
+concurrency:
+  group: auto-merge-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Get PR number
+        id: pr
+        run: |
+          pr_number=$(echo '${{ toJson(github.event.workflow_run.pull_requests) }}' | jq -r '.[0].number // empty')
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          if [ -z "$pr_number" ]; then
+            echo "No associated PR for this workflow run"
+          fi
+
+      - name: Evaluate gate and merge
+        if: steps.pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_PAT }}
+          PR: ${{ steps.pr.outputs.pr_number }}
+          REPO: ${{ github.repository }}
+          TRIGGERED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          pr_json=$(gh pr view "$PR" --repo "$REPO" --json state,isDraft,headRefOid)
+          state=$(echo "$pr_json" | jq -r '.state')
+          is_draft=$(echo "$pr_json" | jq -r '.isDraft')
+          current_head=$(echo "$pr_json" | jq -r '.headRefOid')
+
+          if [ "$state" != "OPEN" ]; then
+            echo "PR is $state, skipping"
+            exit 0
+          fi
+
+          if [ "$is_draft" = "true" ]; then
+            echo "PR is a draft, skipping"
+            exit 0
+          fi
+
+          if [ "$TRIGGERED_SHA" != "$current_head" ]; then
+            echo "Head has moved ($TRIGGERED_SHA -> $current_head), skipping - newer commit will retrigger"
+            exit 0
+          fi
+
+          verdict=$(gh pr view "$PR" --repo "$REPO" --json comments \
+            --jq '[.comments[] | select(.body | test("REVIEW: (PASS|FAIL)"))] | last | .body' \
+            | grep -oE 'REVIEW: (PASS|FAIL)' | head -1 || echo "")
+          echo "Claude verdict: ${verdict:-(none yet)}"
+          if [ "$verdict" != "REVIEW: PASS" ]; then
+            echo "Not approved by Claude, skipping"
+            exit 0
+          fi
+
+          rollup=$(gh pr view "$PR" --repo "$REPO" --json statusCheckRollup --jq '.statusCheckRollup')
+          pending=$(echo "$rollup" | jq '[.[] | select(.status == "IN_PROGRESS" or .status == "QUEUED" or .status == "PENDING" or .state == "PENDING")] | length')
+          failed=$(echo "$rollup" | jq '[.[] | select(.conclusion == "FAILURE" or .conclusion == "CANCELLED" or .conclusion == "TIMED_OUT" or .conclusion == "ACTION_REQUIRED" or .state == "FAILURE" or .state == "ERROR")] | length')
+
+          if [ "$pending" != "0" ]; then
+            echo "$pending checks still pending, will retry on next workflow completion"
+            exit 0
+          fi
+          if [ "$failed" != "0" ]; then
+            echo "$failed checks failed, skipping merge"
+            exit 0
+          fi
+
+          echo "All conditions met - approving and merging"
+          gh pr review "$PR" --repo "$REPO" --approve --body "Auto-approved: Claude review passed and all checks succeeded."
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch

@@ -1,0 +1,39 @@
+name: Claude PR Review
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request with focus on:
+            - Code quality and correctness
+            - Potential bugs or regressions
+            - Adherence to the rules in CLAUDE.md (especially the Hard Rules section)
+            - Test coverage for behavior changes
+
+            Use inline comments for specific code issues. Post exactly one top-level summary comment.
+
+            The final line of your summary comment MUST be one of these verdicts, on its own line, with no surrounding punctuation or formatting:
+            - `REVIEW: PASS` — the PR is ready to merge
+            - `REVIEW: FAIL` — the PR needs changes before merge
+
+            Be strict: if you found any bug, missing test, or Hard Rule violation, use FAIL.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
