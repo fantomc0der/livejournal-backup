@@ -48,11 +48,15 @@ bun run src/index.ts archive myusername
 bun run src/index.ts archive --year 2002
 ```
 
-### Archive a specific month
+### Archive a date range
+
+Archive a window of N days starting from (and including) a specific date:
 
 ```bash
-bun run src/index.ts archive --year 2002 --month 1
+bun run src/index.ts archive --start-date 2002-12-20 --days 30
 ```
+
+Ranges can cross year boundaries — the CLI fetches each year's calendar page and filters down to the dates inside your window.
 
 ### All options
 
@@ -60,19 +64,21 @@ bun run src/index.ts archive --year 2002 --month 1
 bun run src/index.ts archive [username] [options]
 
 Options:
-  --year <year>       Only archive a specific year (e.g. 2002)
-  --month <month>     Only archive a specific month 1-12 (requires --year)
-  --day <day>         Only archive a specific day 1-31 (requires --year and --month)
-  --limit <n>         Max number of days to archive (omit for no limit)
-  --retries <n>       Number of retries per page on failure (default: 3)
-  --delay <ms>        Wait time in ms between requests (default: 1000)
-  --output <dir>      Output directory (default: ./archive)
-  --verbose           Enable verbose logging
-  --skip-existing     Skip dates that already have a markdown file
-  --dry-run           Show what would be archived without downloading or writing files
-  -h, --help          Display help
-  -V, --version       Display version
+  --year <year>              Only archive a specific calendar year (e.g. 2002)
+  --start-date <YYYY-MM-DD>  Start of a date range to archive (requires --days)
+  --days <n>                 Number of days to archive starting from --start-date (inclusive)
+  --limit <n>                Max number of days to archive (omit for no limit)
+  --retries <n>              Number of retries per page on failure (default: 3)
+  --delay <ms>               Wait time in ms between requests (default: 1000)
+  --output <dir>             Output directory (default: ./archive)
+  --verbose                  Enable verbose logging
+  --skip-existing            Skip dates that already have a markdown file
+  --dry-run                  Show what would be archived without downloading or writing files
+  -h, --help                 Display help
+  -V, --version              Display version
 ```
+
+`--year` and `--start-date`/`--days` are mutually exclusive. If no date args are provided, the CLI discovers all available years from the user's calendar page and archives everything.
 
 The username argument is optional. If omitted, the CLI reads `LJ_USERNAME` from your `.env` file. If neither is provided, the CLI exits with an error.
 
@@ -91,6 +97,12 @@ bun run src/index.ts archive --year 2005 --verbose
 # Override .env username for a one-off run
 bun run src/index.ts archive otherusername --year 2005
 
+# Archive a 30-day window starting from a specific date
+bun run src/index.ts archive --start-date 2002-12-15 --days 30
+
+# Archive a single day
+bun run src/index.ts archive --start-date 2002-01-24 --days 1
+
 # Archive only the first 5 days (useful for quick testing)
 bun run src/index.ts archive --limit 5
 
@@ -99,6 +111,9 @@ bun run src/index.ts archive --dry-run
 
 # Dry run for a specific year
 bun run src/index.ts archive --year 2002 --dry-run
+
+# Dry run for a date range
+bun run src/index.ts archive --start-date 2002-12-15 --days 30 --dry-run
 ```
 
 ## Output Structure

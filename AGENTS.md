@@ -99,19 +99,21 @@ tests/
 bun run src/index.ts archive [username] [options]
 
 Options:
-  --year <year>       Archive only this year (e.g. 2002)
-  --month <month>     Archive only this month, 1–12 (requires --year)
-  --day <day>         Archive only this day, 1–31 (requires --year and --month)
-  --limit <n>         Max number of days to archive (omit for no limit)
-  --retries <n>       Retries per page on failure (default: 3)
-  --delay <ms>        Wait between requests in ms (default: 1000)
-  --output <dir>      Output directory (default: ./archive)
-  --verbose           Enable debug-level logging
-  --skip-existing     Skip dates that already have a .md file
-  --dry-run           Show what would be archived without downloading or writing files
+  --year <year>              Archive only this calendar year (e.g. 2002)
+  --start-date <YYYY-MM-DD>  Start of a date range to archive (requires --days)
+  --days <n>                 Number of days to archive starting from --start-date (inclusive)
+  --limit <n>                Max number of days to archive (omit for no limit)
+  --retries <n>              Retries per page on failure (default: 3)
+  --delay <ms>               Wait between requests in ms (default: 1000)
+  --output <dir>             Output directory (default: ./archive)
+  --verbose                  Enable debug-level logging
+  --skip-existing            Skip dates that already have a .md file
+  --dry-run                  Show what would be archived without downloading or writing files
 ```
 
 The `username` argument is optional. If omitted, the CLI reads `LJ_USERNAME` from `.env`. A CLI argument always takes priority over the env value.
+
+`--year` and `--start-date`/`--days` are mutually exclusive. `--start-date` and `--days` must always be used together. If no date args are provided, the CLI discovers all years from the user's calendar page and archives everything.
 
 ---
 
@@ -131,7 +133,7 @@ Ensure `.env` has `LJ_USERNAME` set (see **Environment** above). When testing, *
 
 Example:
 ```bash
-bun run src/index.ts archive --year 2002 --month 1 --output ./test-output/jan-2002 --delay 2000
+bun run src/index.ts archive --year 2002 --output ./test-output/2002 --delay 2000
 ```
 
 `test-output/` is gitignored — no scraped data is ever committed.
@@ -232,13 +234,13 @@ If you are investigating a problem visible in an output file under `archive/` or
 
 ### Testing a single day
 
-Use the `--day` flag to archive a single day without scraping the calendar or year pages:
+Use `--start-date` with `--days 1` to archive a single day:
 
 ```bash
-bun run src/index.ts archive --year 2002 --month 1 --day 24 --output ./test-output/debug --delay 2000
+bun run src/index.ts archive --start-date 2002-01-24 --days 1 --output ./test-output/debug --delay 2000
 ```
 
-This is much faster than pulling a whole month when you only need to verify one day's output.
+This is much faster than pulling a whole year when you only need to verify one day's output.
 
 ### Quick smoke test with `--limit`
 
@@ -248,10 +250,11 @@ To verify the full archive pipeline without scraping an entire journal, use `--l
 bun run src/index.ts archive --limit 1 --output ./test-output/smoke --delay 2000
 ```
 
-This is the fastest way to confirm end-to-end functionality (calendar → year → day → markdown) during development. Combine with `--year` to limit which year is scraped first:
+This is the fastest way to confirm end-to-end functionality (calendar → year → day → markdown) during development. Combine with `--year` to limit which year is scraped first, or use `--start-date`/`--days` with `--limit` for a bounded range:
 
 ```bash
 bun run src/index.ts archive --year 2002 --limit 3 --output ./test-output/first-three --delay 2000
+bun run src/index.ts archive --start-date 2002-06-01 --days 90 --limit 3 --output ./test-output/sample --delay 2000
 ```
 
 ### Viewing source HTML

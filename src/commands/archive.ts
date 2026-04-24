@@ -1,4 +1,4 @@
-import type { ArchiveOptions, DateEntry } from "../types.ts";
+import type { ArchiveOptions, DateEntry, LocalDate } from "../types.ts";
 import * as clack from "@clack/prompts";
 import pc from "picocolors";
 import { Logger } from "../utils/logger.ts";
@@ -8,6 +8,7 @@ import { scrapeCalendar } from "../scrapers/calendar.ts";
 import { scrapeYear } from "../scrapers/year.ts";
 import { scrapeDay } from "../scrapers/day.ts";
 import { writeDayFile, dayFileExists, getDayFilePath, writeTableOfContents } from "../writers/file-writer.ts";
+import { addDays, formatDate, isDateInRange, yearsInRange } from "../utils/date.ts";
 
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -23,6 +24,42 @@ function formatElapsed(ms: number): string {
   if (totalSeconds >= 300) return pc.green(label);
   if (totalSeconds >= 60) return pc.yellow(label);
   return label;
+}
+
+type YearPlan = { kind: "explicit"; years: number[] } | { kind: "discover" };
+
+interface ResolvedRange {
+  plan: YearPlan;
+  dateFilter: ((d: DateEntry) => boolean) | null;
+  rangeLabel: string | null;
+  singleDate: LocalDate | null;
+}
+
+function resolveRange(options: ArchiveOptions): ResolvedRange {
+  if (options.startDate !== undefined && options.days !== undefined) {
+    const start = options.startDate;
+    const end = addDays(start, options.days - 1);
+    const years = yearsInRange(start, end);
+    const plural = options.days === 1 ? "day" : "days";
+    const rangeLabel = options.days === 1
+      ? formatDate(start)
+      : `${formatDate(start)} → ${formatDate(end)} (${options.days} ${plural})`;
+    return {
+      plan: { kind: "explicit", years },
+      dateFilter: (d) => isDateInRange(d, start, end),
+      rangeLabel,
+      singleDate: options.days === 1 ? start : null,
+    };
+  }
+  if (options.year !== undefined) {
+    return {
+      plan: { kind: "explicit", years: [options.year] },
+      dateFilter: null,
+      rangeLabel: null,
+      singleDate: null,
+    };
+  }
+  return { plan: { kind: "discover" }, dateFilter: null, rangeLabel: null, singleDate: null };
 }
 
 export async function runArchive(options: ArchiveOptions): Promise<void> {
@@ -44,64 +81,55 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
     logger.info(`Limit: ${options.limit} day(s)`);
   }
 
+  const range = resolveRange(options);
+  if (range.rangeLabel) {
+    logger.info(`Date range: ${range.rangeLabel}`);
+  }
+
   let totalEntries = 0;
   let totalDays = 0;
 
   const limitReached = (): boolean =>
     options.limit !== undefined && totalDays >= options.limit;
 
-  if (options.day !== undefined && options.month !== undefined && options.year !== undefined) {
-    const date: DateEntry = { year: options.year, month: options.month, day: options.day };
-
-    if (options.dryRun) {
-      const datesForYear = await scrapeYear(options.username, options.year, options.retries, options.delay, logger);
-      const matched = datesForYear.find((d) => d.month === options.month && d.day === options.day);
-      if (matched) {
-        logDryRunEntryPlain(logger, options.outputDir, matched);
-        totalEntries += matched.entryCount ?? 0;
+  if (!options.dryRun && range.singleDate) {
+    const date = range.singleDate;
+    const dateLabel = formatDate(date);
+    logger.info(`Archiving single day: ${dateLabel}`);
+    if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
+      logger.debug(`Skipping existing file for ${dateLabel}`);
+    } else {
+      const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
+      if (entries.length > 0) {
+        await writeDayFile(options.outputDir, date, entries, logger);
+        totalEntries += entries.length;
         totalDays++;
       } else {
-        logger.info(`No entries found for ${date.year}/${date.month}/${date.day}`);
-      }
-    } else {
-      logger.info(`Archiving single day: ${date.year}/${date.month}/${date.day}`);
-      if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
-        logger.debug(`Skipping existing file for ${date.year}/${date.month}/${date.day}`);
-      } else {
-        const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
-        if (entries.length > 0) {
-          await writeDayFile(options.outputDir, date, entries, logger);
-          totalEntries += entries.length;
-          totalDays++;
-        } else {
-          logger.debug(`No entries found for ${date.year}/${date.month}/${date.day}`);
-        }
+        logger.debug(`No entries found for ${dateLabel}`);
       }
     }
   } else {
     let years: number[];
-    if (options.year !== undefined) {
-      years = [options.year];
-      logger.info(`Archiving year: ${options.year}`);
-    } else {
+    if (range.plan.kind === "discover") {
       logger.info("Discovering years with journal entries...");
       years = await scrapeCalendar(options.username, options.retries, options.delay, logger);
       logger.info(`Years with journal entries: ${years.join(", ")}`);
+    } else {
+      years = range.plan.years;
+      if (range.rangeLabel === null && years.length === 1) {
+        logger.info(`Archiving year: ${years[0]}`);
+      }
     }
 
     for (const year of years) {
       if (limitReached()) break;
       logger.info(`Processing year ${year}...`);
 
-      let dates: DateEntry[];
-      if (options.month !== undefined) {
-        const datesForYear = await scrapeYear(options.username, year, options.retries, options.delay, logger);
-        dates = datesForYear.filter((d) => d.month === options.month);
-        logger.info(`Found ${dates.length} days with journal entries in ${year}/${options.month}`);
-      } else {
-        dates = await scrapeYear(options.username, year, options.retries, options.delay, logger);
-        logger.info(`Found ${dates.length} days with journal entries in ${year}`);
+      let dates = await scrapeYear(options.username, year, options.retries, options.delay, logger);
+      if (range.dateFilter) {
+        dates = dates.filter(range.dateFilter);
       }
+      logger.info(`Found ${dates.length} days with journal entries in ${year}`);
 
       for (const date of dates) {
         if (limitReached()) break;
@@ -112,7 +140,7 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
           continue;
         }
         if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
-          logger.debug(`Skipping existing file for ${date.year}/${date.month}/${date.day}`);
+          logger.debug(`Skipping existing file for ${formatDate(date)}`);
           continue;
         }
         const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
@@ -121,7 +149,7 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
           totalEntries += entries.length;
           totalDays++;
         } else {
-          logger.debug(`No entries found for ${date.year}/${date.month}/${date.day}`);
+          logger.debug(`No entries found for ${formatDate(date)}`);
         }
       }
     }
@@ -230,135 +258,122 @@ async function archiveTuiCore(
   let totalEntries = 0;
   let totalDays = 0;
 
+  const range = resolveRange(options);
+  if (range.rangeLabel) {
+    clack.log.info(`Range: ${pc.cyan(range.rangeLabel)}`);
+  }
+
   const limitReached = (): boolean =>
     options.limit !== undefined && totalDays >= options.limit;
 
-  if (options.day !== undefined && options.month !== undefined && options.year !== undefined) {
-    const date: DateEntry = { year: options.year, month: options.month, day: options.day };
-    const dateLabel = `${date.year}/${String(date.month).padStart(2, "0")}/${String(date.day).padStart(2, "0")}`;
+  if (!options.dryRun && range.singleDate) {
+    const date = range.singleDate;
+    const dateLabel = formatDate(date);
+    startSpinner(state, logger, `Archiving ${dateLabel}...`);
 
-    if (options.dryRun) {
-      startSpinner(state, logger, `Scanning ${options.year}...`);
-      const datesForYear = await scrapeYear(options.username, options.year, options.retries, options.delay, logger);
-      stopSpinner(state, logger, `Found ${datesForYear.length} days with journal entries in ${options.year}`);
-
-      const matched = datesForYear.find((d) => d.month === options.month && d.day === options.day);
-      if (matched) {
-        const filePath = getDayFilePath(options.outputDir, matched);
-        clack.log.message(`${pc.dim(filePath)} (${formatDryRunCount(matched.entryCount)})`);
-        totalEntries += matched.entryCount ?? 0;
+    if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
+      stopSpinner(state, logger, pc.dim("Skipped"));
+      clack.log.message(pc.dim(`⊘ Skipped ${dateLabel} (file exists)`));
+    } else {
+      const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
+      if (entries.length > 0) {
+        await writeDayFile(options.outputDir, date, entries, logger);
+        const filePath = getDayFilePath(options.outputDir, date);
+        stopSpinner(state, logger, pc.green("Done"));
+        clack.log.success(`Wrote ${pc.dim(filePath)}`);
+        totalEntries += entries.length;
         totalDays++;
       } else {
+        stopSpinner(state, logger, pc.dim("No entries"));
         clack.log.message(pc.dim(`⊘ No entries found for ${dateLabel}`));
       }
-    } else {
-      startSpinner(state, logger, `Archiving ${dateLabel}...`);
-
-      if (options.skipExisting && await dayFileExists(options.outputDir, date)) {
-        stopSpinner(state, logger, pc.dim("Skipped"));
-        clack.log.message(pc.dim(`⊘ Skipped ${dateLabel} (file exists)`));
-      } else {
-        const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
-        if (entries.length > 0) {
-          await writeDayFile(options.outputDir, date, entries, logger);
-          const filePath = getDayFilePath(options.outputDir, date);
-          stopSpinner(state, logger, pc.green("Done"));
-          clack.log.success(`Wrote ${pc.dim(filePath)}`);
-          totalEntries += entries.length;
-          totalDays++;
-        } else {
-          stopSpinner(state, logger, pc.dim("No entries"));
-          clack.log.message(pc.dim(`⊘ No entries found for ${dateLabel}`));
-        }
-      }
     }
+    return { totalEntries, totalDays };
+  }
+
+  let years: number[];
+  if (range.plan.kind === "discover") {
+    startSpinner(state, logger, "Discovering years with journal entries...");
+    years = await scrapeCalendar(options.username, options.retries, options.delay, logger);
+    stopSpinner(state, logger, `Years with journal entries: ${pc.cyan(years.join(", "))}`);
   } else {
-    let years: number[];
-
-    if (options.year !== undefined) {
-      years = [options.year];
-      clack.log.info(`Archiving year: ${pc.cyan(String(options.year))}`);
-    } else {
-      startSpinner(state, logger, "Discovering years with journal entries...");
-      years = await scrapeCalendar(options.username, options.retries, options.delay, logger);
-      stopSpinner(state, logger, `Years with journal entries: ${pc.cyan(years.join(", "))}`);
+    years = range.plan.years;
+    if (range.rangeLabel === null && years.length === 1) {
+      clack.log.info(`Archiving year: ${pc.cyan(String(years[0]))}`);
     }
+  }
 
-    for (const year of years) {
-      if (limitReached()) break;
+  for (const year of years) {
+    if (limitReached()) break;
 
-      let yearEntries = 0;
-      let yearDays = 0;
+    let yearEntries = 0;
+    let yearDays = 0;
 
-      startSpinner(state, logger, `Scanning ${year}...`);
-      let dates: DateEntry[];
-      if (options.month !== undefined) {
-        const datesForYear = await scrapeYear(options.username, year, options.retries, options.delay, logger);
-        dates = datesForYear.filter((d) => d.month === options.month);
-      } else {
-        dates = await scrapeYear(options.username, year, options.retries, options.delay, logger);
+    startSpinner(state, logger, `Scanning ${year}...`);
+    let dates = await scrapeYear(options.username, year, options.retries, options.delay, logger);
+    if (range.dateFilter) {
+      dates = dates.filter(range.dateFilter);
+    }
+    stopSpinner(state, logger, `Found ${dates.length} days with journal entries in ${year}`);
+
+    if (options.dryRun) {
+      for (const date of dates) {
+        if (limitReached()) break;
+        const filePath = getDayFilePath(options.outputDir, date);
+        clack.log.message(`${pc.dim(filePath)} (${formatDryRunCount(date.entryCount)})`);
+        totalEntries += date.entryCount ?? 0;
+        totalDays++;
+        yearEntries += date.entryCount ?? 0;
+        yearDays++;
       }
-      stopSpinner(state, logger, `Found ${dates.length} days with journal entries in ${year}`);
-
-      if (options.dryRun) {
+      clack.log.info(`${pc.cyan(String(year))}: ${pc.bold(String(yearEntries))} journal entries across ${pc.bold(String(yearDays))} days`);
+    } else {
+      let eligible = dates;
+      if (options.skipExisting) {
+        const filtered: DateEntry[] = [];
+        let skippedCount = 0;
         for (const date of dates) {
-          if (limitReached()) break;
-          const filePath = getDayFilePath(options.outputDir, date);
-          clack.log.message(`${pc.dim(filePath)} (${formatDryRunCount(date.entryCount)})`);
-          totalEntries += date.entryCount ?? 0;
-          totalDays++;
-          yearEntries += date.entryCount ?? 0;
-          yearDays++;
+          if (await dayFileExists(options.outputDir, date)) {
+            skippedCount++;
+          } else {
+            filtered.push(date);
+          }
         }
-        clack.log.info(`${pc.cyan(String(year))}: ${pc.bold(String(yearEntries))} journal entries across ${pc.bold(String(yearDays))} days`);
+        if (skippedCount > 0) {
+          clack.log.message(pc.dim(`⊘ Skipping ${skippedCount} existing file(s)`));
+        }
+        eligible = filtered;
+      }
+
+      if (eligible.length === 0) {
+        clack.log.message(pc.dim(`No new days to archive in ${year}`));
       } else {
-        let eligible = dates;
-        if (options.skipExisting) {
-          const filtered: DateEntry[] = [];
-          let skippedCount = 0;
-          for (const date of dates) {
-            if (await dayFileExists(options.outputDir, date)) {
-              skippedCount++;
-            } else {
-              filtered.push(date);
-            }
+        const prog = dualProgress({ max: eligible.length });
+        prog.start(`Archiving ${pc.bold(String(year))}`);
+        state.activeProgress = prog;
+        logger.setProgress(prog);
+
+        for (const date of eligible) {
+          if (limitReached()) break;
+
+          prog.message(`${pc.cyan(shortDate(date.month, date.day))} ${pc.dim("fetching…")}`);
+          const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
+          if (entries.length > 0) {
+            await writeDayFile(options.outputDir, date, entries, logger);
+            const filePath = getDayFilePath(options.outputDir, date);
+            prog.advance(1, `${pc.green("✓")} ${pc.cyan(shortDate(date.month, date.day))} ${pc.dim(filePath)}`);
+            totalEntries += entries.length;
+            totalDays++;
+            yearEntries += entries.length;
+            yearDays++;
+          } else {
+            prog.advance(1, pc.dim(`⊘ no entries ${shortDate(date.month, date.day)}`));
           }
-          if (skippedCount > 0) {
-            clack.log.message(pc.dim(`⊘ Skipping ${skippedCount} existing file(s)`));
-          }
-          eligible = filtered;
         }
 
-        if (eligible.length === 0) {
-          clack.log.message(pc.dim(`No new days to archive in ${year}`));
-        } else {
-          const prog = dualProgress({ max: eligible.length });
-          prog.start(`Archiving ${pc.bold(String(year))}`);
-          state.activeProgress = prog;
-          logger.setProgress(prog);
-
-          for (const date of eligible) {
-            if (limitReached()) break;
-
-            prog.message(`${pc.cyan(shortDate(date.month, date.day))} ${pc.dim("fetching…")}`);
-            const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
-            if (entries.length > 0) {
-              await writeDayFile(options.outputDir, date, entries, logger);
-              const filePath = getDayFilePath(options.outputDir, date);
-              prog.advance(1, `${pc.green("✓")} ${pc.cyan(shortDate(date.month, date.day))} ${pc.dim(filePath)}`);
-              totalEntries += entries.length;
-              totalDays++;
-              yearEntries += entries.length;
-              yearDays++;
-            } else {
-              prog.advance(1, pc.dim(`⊘ no entries ${shortDate(date.month, date.day)}`));
-            }
-          }
-
-          prog.stop(`${pc.green("✓")} ${year}: ${yearEntries} journal entries across ${yearDays} days`);
-          logger.clearProgress();
-          state.activeProgress = null;
-        }
+        prog.stop(`${pc.green("✓")} ${year}: ${yearEntries} journal entries across ${yearDays} days`);
+        logger.clearProgress();
+        state.activeProgress = null;
       }
     }
   }

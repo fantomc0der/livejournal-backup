@@ -4,6 +4,8 @@ import pc from "picocolors";
 import { runArchive } from "./commands/archive.ts";
 import { validateUsername } from "./utils/http.ts";
 import { isTTY } from "./utils/tui.ts";
+import { parseIsoDate } from "./utils/date.ts";
+import type { LocalDate } from "./types.ts";
 
 function logError(message: string): void {
   if (isTTY()) {
@@ -20,6 +22,22 @@ function parseIntOption(value: string): number {
   return parseInt(value, 10);
 }
 
+function parsePositiveIntOption(value: string): number {
+  const n = parseIntOption(value);
+  if (n < 1) {
+    throw new InvalidArgumentError(`Expected a positive integer, got: ${value}`);
+  }
+  return n;
+}
+
+function parseIsoDateOption(value: string): LocalDate {
+  try {
+    return parseIsoDate(value);
+  } catch (err) {
+    throw new InvalidArgumentError(err instanceof Error ? err.message : String(err));
+  }
+}
+
 export function buildCli(): Command {
   const program = new Command();
 
@@ -31,9 +49,9 @@ export function buildCli(): Command {
   program
     .command("archive [username]")
     .description("Archive all journal entries for a LiveJournal user")
-    .option("--year <year>", "Only archive a specific year (e.g. 2002)", parseIntOption)
-    .option("--month <month>", "Only archive a specific month 1-12 (requires --year)", parseIntOption)
-    .option("--day <day>", "Only archive a specific day 1-31 (requires --year and --month)", parseIntOption)
+    .option("--year <year>", "Only archive a specific calendar year (e.g. 2002)", parseIntOption)
+    .option("--start-date <YYYY-MM-DD>", "Start of a date range to archive (requires --days)", parseIsoDateOption)
+    .option("--days <n>", "Number of days to archive starting from --start-date (inclusive)", parsePositiveIntOption)
     .option("--retries <n>", "Number of retries per page on failure", parseIntOption, 3)
     .option("--delay <ms>", "Wait time in ms between requests", parseIntOption, 1000)
     .option("--output <dir>", "Output directory", "./archive")
@@ -43,8 +61,8 @@ export function buildCli(): Command {
     .option("--dry-run", "Show what would be archived without downloading or writing files", false)
     .action(async (usernameArg: string | undefined, opts: {
       year?: number;
-      month?: number;
-      day?: number;
+      startDate?: LocalDate;
+      days?: number;
       limit?: number;
       retries: number;
       delay: number;
@@ -60,13 +78,13 @@ export function buildCli(): Command {
         process.exit(1);
       }
 
-      if (opts.month !== undefined && opts.year === undefined) {
-        logError("--month requires --year to be specified");
+      if ((opts.startDate !== undefined) !== (opts.days !== undefined)) {
+        logError("--start-date and --days must be used together");
         process.exit(1);
       }
 
-      if (opts.day !== undefined && (opts.year === undefined || opts.month === undefined)) {
-        logError("--day requires both --year and --month to be specified");
+      if (opts.startDate !== undefined && opts.year !== undefined) {
+        logError("--year cannot be combined with --start-date / --days");
         process.exit(1);
       }
 
@@ -80,8 +98,8 @@ export function buildCli(): Command {
       await runArchive({
         username,
         year: opts.year,
-        month: opts.month,
-        day: opts.day,
+        startDate: opts.startDate,
+        days: opts.days,
         limit: opts.limit,
         retries: opts.retries,
         delay: opts.delay,

@@ -5,11 +5,17 @@ export interface JournalEntry {
   content: string; // HTML content
 }
 
+export interface LocalDate {
+  year: number;
+  month: number;
+  day: number;
+}
+
 export interface ArchiveOptions {
   username: string;
   year?: number;
-  month?: number;
-  day?: number;
+  startDate?: LocalDate;
+  days?: number;
   limit?: number;
   retries: number;
   delay: number;
@@ -19,9 +25,6 @@ export interface ArchiveOptions {
   dryRun: boolean;
 }
 
-export interface DateEntry {
-  year: number;
-  month: number;
-  day: number;
+export interface DateEntry extends LocalDate {
   entryCount?: number;
 }
