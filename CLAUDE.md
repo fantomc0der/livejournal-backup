@@ -1,1 +1,1 @@
-Read [AGENTS.md](./AGENTS.md) for agent instructions
+AGENTS.md
