@@ -1,6 +1,6 @@
 # livejournal-backup
 
-TypeScript/Bun CLI for archiving LiveJournal journal entries to local markdown files.
+TypeScript/Bun CLI for archiving [LiveJournal](https://www.livejournal.com) journal entries to local markdown files.
 
 ## Requirements
 
