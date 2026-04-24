@@ -17,7 +17,7 @@ Solo-dev workflow where Claude reviews every PR and the merge gate handles squas
    - The SHA that triggered this run is still the PR's head (i.e. you haven't pushed a newer commit in the meantime). If you have, the newer commit's workflow completions will retrigger the gate.
    - The most recent Claude verdict comment is `REVIEW: PASS`.
    - Every status check on the PR head SHA completed successfully (none pending, none failed).
-7. If all gates pass, the workflow posts an approving review and calls `gh pr merge --squash --delete-branch`. Done.
+7. If all gates pass, the workflow calls `gh pr merge --squash --delete-branch`. Done. (An approving review step exists in the workflow but is currently disabled — GitHub forbids a PAT from approving a PR opened by the same account. Revisit if `PR_AUTOMATION_PAT` is replaced with a GitHub App token.)
 
 If any gate fails, nothing happens and the PR stays open. Push more commits, Claude re-reviews the new head, and the gate re-evaluates.
 
@@ -29,6 +29,7 @@ If you decide mid-review that a PR needs more work, **convert it back to a draft
 - `.github/workflows/enforce-draft.yml` — on `pull_request: opened`, if the PR was opened non-draft, converts it to a draft via the GraphQL `convertPullRequestToDraft` mutation and posts an explanatory comment. Enforces that all PRs start as drafts so the gate never fires on in-progress work.
 - `.github/workflows/claude-review.yml` — runs the Anthropic action when a PR is opened, synchronized, or marked ready for review. Skipped while the PR is a draft.
 - `.github/workflows/auto-merge.yml` — the gate. Triggered by `workflow_run` completion of either `CI Build` or `Claude PR Review`.
+- `.github/workflows/claude-fix.yml` — on-demand. Fires when a PR comment contains `@claude`; runs `claude-code-action` to push code changes directly to the branch.
 
 ## Required secrets
 
@@ -36,8 +37,8 @@ Both stored as repo-level Actions secrets.
 
 | Secret | What it is | Used by |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | API key from `console.anthropic.com/settings/keys` | `claude-review.yml` |
-| `PR_AUTOMATION_PAT` | Fine-grained PAT scoped to this repo with `Contents: write` and `Pull requests: write` | `enforce-draft.yml`, `auto-merge.yml` |
+| `ANTHROPIC_API_KEY` | API key from `console.anthropic.com/settings/keys` | `claude-review.yml`, `claude-fix.yml` |
+| `PR_AUTOMATION_PAT` | Fine-grained PAT scoped to this repo with `Contents: write` and `Pull requests: write` | `enforce-draft.yml`, `auto-merge.yml`, `claude-fix.yml` |
 
 The PAT is shared by both PR-automation workflows. `enforce-draft.yml` needs it because the default `GITHUB_TOKEN` is not permitted to call the `convertPullRequestToDraft` GraphQL mutation — it returns `Resource not accessible by integration` even with `pull-requests: write`. `auto-merge.yml` needs it so that any downstream workflows triggered by a push to `main` will still fire (the default token does not trigger downstream workflows — that is deliberate in GitHub to prevent loops). For this repo right now, the default token would also work for the auto-merge step itself because nothing runs on push to `main` that isn't already running on the PR; reusing the same PAT is both future-proofing and simpler than juggling two secrets.
 

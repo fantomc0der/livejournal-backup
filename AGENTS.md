@@ -58,6 +58,7 @@ Bun loads `.env` automatically — no extra dependencies required.
   claude-review.yml           # LLM review on PR ready-for-review (see docs/pr-automation.md)
   enforce-draft.yml           # Auto-converts new PRs to draft (see docs/pr-automation.md)
   auto-merge.yml              # Squash-merge gate after CI + Claude review (see docs/pr-automation.md)
+  claude-fix.yml              # Runs claude-code-action when a PR comment contains @claude
 src/
   index.ts                    # Entry point — wires CLI
   cli.ts                      # Commander setup, option parsing
@@ -281,11 +282,12 @@ GitHub Actions (`.github/workflows/ci-build.yml`, workflow name "CI Build") runs
 
 No publishing step — this project is not distributed to a registry.
 
-In addition to CI Build, the repo has four PR-automation workflows:
+In addition to CI Build, the repo has five PR-automation workflows:
 
 - **`typecheck-review.yml`** — runs `bun run typecheck` against the PR and posts a single updating comment listing any tsc errors grouped by file, with deep links into the diff. Independent of the Claude review flow.
 - **`enforce-draft.yml`** — on `pull_request: opened`, converts any non-draft PR to a draft so the merge gate never fires on in-progress work.
 - **`claude-review.yml`** — runs `anthropics/claude-code-action` on a ready-for-review PR. Posts inline comments and a summary ending in `REVIEW: PASS` or `REVIEW: FAIL`.
 - **`auto-merge.yml`** — triggered by `workflow_run` completion of `CI` or `Claude PR Review`. Approves and squash-merges the PR only if every gate passes.
+- **`claude-fix.yml`** — triggered by PR comments containing `@claude`. Runs `anthropics/claude-code-action` to push fixes directly to the branch.
 
 See `docs/pr-automation.md` for the full happy path, required secrets, and the bypass procedure.
