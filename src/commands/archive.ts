@@ -3,6 +3,7 @@ import * as clack from "@clack/prompts";
 import pc from "picocolors";
 import { Logger } from "../utils/logger.ts";
 import { TuiLogger, isTTY } from "../utils/tui.ts";
+import { dualProgress, type DualProgress } from "../utils/dual-progress.ts";
 import { scrapeCalendar } from "../scrapers/calendar.ts";
 import { scrapeYear } from "../scrapers/year.ts";
 import { scrapeDay } from "../scrapers/day.ts";
@@ -16,10 +17,12 @@ function shortDate(month: number, day: number): string {
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}m ${seconds}s`;
+  const label = totalSeconds < 60
+    ? `${totalSeconds}s`
+    : `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
+  if (totalSeconds >= 300) return pc.green(label);
+  if (totalSeconds >= 60) return pc.yellow(label);
+  return label;
 }
 
 export async function runArchive(options: ArchiveOptions): Promise<void> {
@@ -81,9 +84,9 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
       years = [options.year];
       logger.info(`Archiving year: ${options.year}`);
     } else {
-      logger.info("Discovering years from calendar...");
+      logger.info("Discovering years with journal entries...");
       years = await scrapeCalendar(options.username, options.retries, options.delay, logger);
-      logger.info(`Found years: ${years.join(", ")}`);
+      logger.info(`Years with journal entries: ${years.join(", ")}`);
     }
 
     for (const year of years) {
@@ -94,10 +97,10 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
       if (options.month !== undefined) {
         const datesForYear = await scrapeYear(options.username, year, options.retries, options.delay, logger);
         dates = datesForYear.filter((d) => d.month === options.month);
-        logger.info(`Found ${dates.length} days in ${year}/${options.month}`);
+        logger.info(`Found ${dates.length} days with journal entries in ${year}/${options.month}`);
       } else {
         dates = await scrapeYear(options.username, year, options.retries, options.delay, logger);
-        logger.info(`Found ${dates.length} days in ${year}`);
+        logger.info(`Found ${dates.length} days with journal entries in ${year}`);
       }
 
       for (const date of dates) {
@@ -131,15 +134,15 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
     await writeTableOfContents(options.outputDir, options.username, logger);
   }
   if (options.dryRun) {
-    logger.info(`Dry run complete: ${totalEntries} entries across ${totalDays} days`);
+    logger.info(`Dry run complete: ${totalEntries} journal entries across ${totalDays} days`);
   } else {
-    logger.info(`Archive complete: ${totalEntries} entries across ${totalDays} days`);
+    logger.info(`Archive complete: ${totalEntries} journal entries across ${totalDays} days`);
   }
 }
 
 interface TuiState {
   activeSpinner: ReturnType<typeof clack.spinner> | null;
-  activeProgress: ReturnType<typeof clack.progress> | null;
+  activeProgress: DualProgress | null;
 }
 
 function cleanupTui(state: TuiState, logger: TuiLogger): void {
@@ -184,9 +187,9 @@ async function runArchiveTui(options: ArchiveOptions): Promise<void> {
       );
     }
     if (options.dryRun) {
-      clack.outro(`Dry run complete: ${pc.bold(String(totalEntries))} entries across ${pc.bold(String(totalDays))} days (${pc.dim(elapsed)})`);
+      clack.outro(`Dry run complete: ${pc.bold(String(totalEntries))} journal entries across ${pc.bold(String(totalDays))} days (${elapsed})`);
     } else {
-      clack.outro(`Archive complete: ${pc.bold(String(totalEntries))} entries across ${pc.bold(String(totalDays))} days (${pc.dim(elapsed)})`);
+      clack.outro(`Archive complete: ${pc.bold(String(totalEntries))} journal entries across ${pc.bold(String(totalDays))} days (${elapsed})`);
     }
   } catch (err) {
     cleanupTui(state, logger);
@@ -200,8 +203,8 @@ async function runArchiveTui(options: ArchiveOptions): Promise<void> {
 function formatDryRunCount(count: number | undefined): string {
   if (count === undefined) return pc.dim("unknown entries");
   const label = `${count} ${count === 1 ? "entry" : "entries"}`;
-  if (count === 1) return pc.dim(label);
-  if (count >= 4) return pc.cyan(label);
+  if (count >= 6) return pc.green(label);
+  if (count >= 3) return pc.yellow(label);
   return label;
 }
 
@@ -237,7 +240,7 @@ async function archiveTuiCore(
     if (options.dryRun) {
       startSpinner(state, logger, `Scanning ${options.year}...`);
       const datesForYear = await scrapeYear(options.username, options.year, options.retries, options.delay, logger);
-      stopSpinner(state, logger, `Found ${datesForYear.length} days in ${options.year}`);
+      stopSpinner(state, logger, `Found ${datesForYear.length} days with journal entries in ${options.year}`);
 
       const matched = datesForYear.find((d) => d.month === options.month && d.day === options.day);
       if (matched) {
@@ -276,9 +279,9 @@ async function archiveTuiCore(
       years = [options.year];
       clack.log.info(`Archiving year: ${pc.cyan(String(options.year))}`);
     } else {
-      startSpinner(state, logger, "Discovering years from calendar...");
+      startSpinner(state, logger, "Discovering years with journal entries...");
       years = await scrapeCalendar(options.username, options.retries, options.delay, logger);
-      stopSpinner(state, logger, `Found years: ${pc.cyan(years.join(", "))}`);
+      stopSpinner(state, logger, `Years with journal entries: ${pc.cyan(years.join(", "))}`);
     }
 
     for (const year of years) {
@@ -295,7 +298,7 @@ async function archiveTuiCore(
       } else {
         dates = await scrapeYear(options.username, year, options.retries, options.delay, logger);
       }
-      stopSpinner(state, logger, `Found ${dates.length} days in ${year}`);
+      stopSpinner(state, logger, `Found ${dates.length} days with journal entries in ${year}`);
 
       if (options.dryRun) {
         for (const date of dates) {
@@ -307,7 +310,7 @@ async function archiveTuiCore(
           yearEntries += date.entryCount ?? 0;
           yearDays++;
         }
-        clack.log.info(`${pc.cyan(String(year))}: ${pc.bold(String(yearEntries))} entries across ${pc.bold(String(yearDays))} days`);
+        clack.log.info(`${pc.cyan(String(year))}: ${pc.bold(String(yearEntries))} journal entries across ${pc.bold(String(yearDays))} days`);
       } else {
         let eligible = dates;
         if (options.skipExisting) {
@@ -329,7 +332,7 @@ async function archiveTuiCore(
         if (eligible.length === 0) {
           clack.log.message(pc.dim(`No new days to archive in ${year}`));
         } else {
-          const prog = clack.progress({ max: eligible.length });
+          const prog = dualProgress({ max: eligible.length });
           prog.start(`Archiving ${pc.bold(String(year))}`);
           state.activeProgress = prog;
           logger.setProgress(prog);
@@ -337,6 +340,7 @@ async function archiveTuiCore(
           for (const date of eligible) {
             if (limitReached()) break;
 
+            prog.message(`${pc.cyan(shortDate(date.month, date.day))} ${pc.dim("fetching…")}`);
             const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
             if (entries.length > 0) {
               await writeDayFile(options.outputDir, date, entries, logger);
@@ -351,7 +355,7 @@ async function archiveTuiCore(
             }
           }
 
-          prog.stop(`${pc.green("✓")} ${year}: ${yearEntries} entries across ${yearDays} days`);
+          prog.stop(`${pc.green("✓")} ${year}: ${yearEntries} journal entries across ${yearDays} days`);
           logger.clearProgress();
           state.activeProgress = null;
         }

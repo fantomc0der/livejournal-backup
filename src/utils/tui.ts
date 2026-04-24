@@ -3,7 +3,9 @@ import pc from "picocolors";
 import { Logger } from "./logger.ts";
 
 type SpinnerInstance = ReturnType<typeof clack.spinner>;
-type ProgressInstance = ReturnType<typeof clack.progress>;
+interface ProgressInstance {
+  message(text: string): void;
+}
 
 export function isTTY(): boolean {
   return process.stdout.isTTY === true;
