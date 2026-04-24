@@ -6,10 +6,8 @@ Solo-dev workflow where Claude reviews every PR and the merge gate handles squas
 
 1. Create a branch locally, commit your changes, push.
 2. Open a pull request against `main`. `enforce-draft.yml` runs on `pull_request: opened`. If the PR was opened as a draft, the workflow's `if: github.event.pull_request.draft == false` guard causes it to skip — the PR is already in the desired state. If the PR was opened non-draft, the workflow converts it to a draft via the GraphQL `convertPullRequestToDraft` mutation and posts an explanatory comment. Either way, every PR ends up as a draft before any review runs.
-3. While the PR is a draft: only CI Build runs. Claude does not review, and the auto-merge gate skips draft PRs.
-4. When you're ready, click **"Ready for review"**. That fires a `ready_for_review` event. Now two workflows run in parallel:
-   - `CI Build` — typecheck, tests, build.
-   - `Claude PR Review` — runs `anthropics/claude-code-action` against the diff.
+3. While the PR is a draft: CI Build runs on every push (it triggers on `push` regardless of PR draft state). Claude does not review (it guards on `draft == false`), and the auto-merge gate also skips draft PRs.
+4. When you're ready, click **"Ready for review"**. That fires a `ready_for_review` event, which triggers `Claude PR Review`. CI Build does **not** re-run at this point — it already ran when you pushed, and its results are in the status check rollup. Both CI Build and Claude PR Review must pass for the gate to open.
 5. Claude posts inline comments on the diff and a summary comment that ends with either `REVIEW: PASS` or `REVIEW: FAIL`.
 6. Whenever either workflow finishes (whichever one is last), `Auto Merge` runs and re-evaluates the full gate:
    - PR is still open.
@@ -55,7 +53,7 @@ The auto-merge gate pulls the *last* comment on the PR containing that pattern a
 
 ## How the race is handled
 
-CI Build and Claude review run in parallel. When the first one finishes, `Auto Merge` runs. If Claude's verdict isn't posted yet (or status checks are still pending), it logs and exits. When the second workflow finishes, `Auto Merge` runs again with both signals available and merges.
+CI Build runs when you push commits; Claude PR Review runs when you click "Ready for review". They complete at different times, but `Auto Merge` is triggered by the completion of either one. When the first one finishes, `Auto Merge` runs and checks whether both gates have passed — if not, it logs and exits. When the second one finishes, `Auto Merge` runs again with both signals available and merges.
 
 The `concurrency` block in `auto-merge.yml` groups by head SHA, so two runs for the same commit won't race each other.
 
