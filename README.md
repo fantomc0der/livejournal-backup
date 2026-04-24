@@ -133,6 +133,10 @@ hey this is my first post here...
 sitting around right now...
 ```
 
+## Terminal Output
+
+On interactive terminals, the CLI displays a polished TUI with animated spinners, progress bars, and colored output powered by [@clack/prompts](https://github.com/bombshell-dev/clack). When output is piped or running in CI, it falls back to plain `[INFO]`/`[DEBUG]` text with no ANSI escape codes.
+
 ## Development
 
 ```bash
@@ -162,7 +166,8 @@ src/
     file-writer.ts            # Writes markdown files to disk
   utils/
     http.ts                   # Fetch with exponential backoff retry
-    logger.ts                 # Leveled logger
+    logger.ts                 # Leveled logger (plain text)
+    tui.ts                    # TUI logger with @clack/prompts (TTY only)
 tests/
   scrapers/                   # Unit tests for scrapers
   converters/                 # Unit tests for converter

@@ -1,6 +1,6 @@
 import type { Logger } from "./logger.ts";
 
-const USER_AGENT = "Mozilla/5.0 (compatible; lj-backup/1.0)";
+const USER_AGENT = "Mozilla/5.0 (compatible; livejournal-backup/1.0)";
 
 export async function fetchWithRetry(
   url: string,

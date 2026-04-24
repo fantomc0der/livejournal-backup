@@ -1,19 +1,29 @@
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
+import * as clack from "@clack/prompts";
+import pc from "picocolors";
 import { runArchive } from "./commands/archive.ts";
+import { isTTY } from "./utils/tui.ts";
+
+function logError(message: string): void {
+  if (isTTY()) {
+    clack.log.error(pc.red(message));
+  } else {
+    console.error(`Error: ${message}`);
+  }
+}
 
 function parseIntOption(value: string): number {
-  const parsed = parseInt(value, 10);
-  if (isNaN(parsed)) {
-    throw new Error(`Expected an integer, got: ${value}`);
+  if (!/^-?\d+$/.test(value)) {
+    throw new InvalidArgumentError(`Expected an integer, got: ${value}`);
   }
-  return parsed;
+  return parseInt(value, 10);
 }
 
 export function buildCli(): Command {
   const program = new Command();
 
   program
-    .name("lj-backup")
+    .name("livejournal-backup")
     .description("Archive LiveJournal entries to markdown files")
     .version("1.0.0");
 
@@ -45,17 +55,17 @@ export function buildCli(): Command {
       const username = usernameArg || process.env.LJ_USERNAME;
 
       if (!username) {
-        console.error("Error: No username provided. Pass a username argument or set LJ_USERNAME in your .env file.");
+        logError("No username provided. Pass a username argument or set LJ_USERNAME in your .env file.");
         process.exit(1);
       }
 
       if (opts.month !== undefined && opts.year === undefined) {
-        console.error("Error: --month requires --year to be specified");
+        logError("--month requires --year to be specified");
         process.exit(1);
       }
 
       if (opts.day !== undefined && (opts.year === undefined || opts.month === undefined)) {
-        console.error("Error: --day requires both --year and --month to be specified");
+        logError("--day requires both --year and --month to be specified");
         process.exit(1);
       }
 
