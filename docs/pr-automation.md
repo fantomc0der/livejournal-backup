@@ -60,9 +60,7 @@ The `concurrency` block in `auto-merge.yml` groups by head SHA, so two runs for 
 
 ## Overriding the automation
 
-If you need to merge without going through Claude (e.g. Anthropic API is down, or Claude keeps incorrectly failing a PR), just use the GitHub UI or `gh pr merge` directly — the auto-merge workflow is additive, not blocking. There is no branch protection requiring Claude's approval.
-
-To disable entirely, delete or rename the two workflow files (or set them to `on: workflow_dispatch` only).
+If you need to merge without going through Claude (e.g. Anthropic API is down, or Claude keeps incorrectly failing a PR), just use the GitHub UI or `gh pr merge` directly — the auto-merge workflow is additive, not blocking. There is no branch protection requiring Claude's approval.  
 
 ## Pros and cons of this setup
 

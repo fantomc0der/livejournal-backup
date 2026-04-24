@@ -281,7 +281,7 @@ GitHub Actions (`.github/workflows/ci-build.yml`, workflow name "CI Build") runs
 
 No publishing step — this project is not distributed to a registry.
 
-In addition to CI, the repo has four PR-automation workflows:
+In addition to CI Build, the repo has four PR-automation workflows:
 
 - **`typecheck-review.yml`** — runs `bun run typecheck` against the PR and posts a single updating comment listing any tsc errors grouped by file, with deep links into the diff. Independent of the Claude review flow.
 - **`enforce-draft.yml`** — on `pull_request: opened`, converts any non-draft PR to a draft so the merge gate never fires on in-progress work.
