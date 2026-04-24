@@ -3,7 +3,7 @@ import * as clack from "@clack/prompts";
 import pc from "picocolors";
 import { runArchive } from "./commands/archive.ts";
 import { validateUsername } from "./utils/http.ts";
-import { isTTY } from "./utils/tui.ts";
+import { isTTY } from "./tui/tty.ts";
 import { parseIsoDate } from "./utils/date.ts";
 import type { LocalDate } from "./types.ts";
 

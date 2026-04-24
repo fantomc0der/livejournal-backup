@@ -69,7 +69,10 @@ src/
   utils/
     http.ts                   # fetchWithRetry with exponential backoff + sleep
     logger.ts                 # Leveled logger (verbose/info/warn/error/debug)
-    tui.ts                    # TuiLogger (extends Logger) + isTTY() gate for @clack/prompts output
+  tui/
+    tty.ts                    # isTTY() — checks whether stdout is an interactive terminal
+    logger.ts                 # TuiLogger (extends Logger) — routes log calls through clack/spinners/progress
+    progress.ts               # dualProgress — two-line progress bar renderer (info line + bar line)
 tests/
   scrapers/                   # Unit tests for each scraper (no real HTTP calls)
   converters/                 # Unit tests for html-to-markdown
@@ -86,7 +89,7 @@ tests/
 - **No `@ts-ignore` or `as any`** — strict TypeScript throughout (see **Hard Rules**).
 - **Scraper resilience**: selectors try multiple fallbacks in order; year extraction scans both `<a href>` patterns and plain text nodes so it doesn't break if LJ restructures the toolbar.
 - **Commander v14 quirk**: `parseInt` cannot be passed directly as a Commander option parser because it receives two arguments (`value, previousDefault`). Use the local `parseIntOption` wrapper in `cli.ts`. It validates with `/^-?\d+$/` and throws `InvalidArgumentError` for non-integer input.
-- **TUI / non-TTY dual path**: On interactive terminals (`process.stdout.isTTY`), the archive command uses `TuiLogger` with `@clack/prompts` for spinners, progress bars, and colored output. On non-interactive terminals (piped output, CI), it falls back to the plain `Logger` with `[INFO]`/`[DEBUG]` text — zero ANSI escape codes. The gate is `isTTY()` in `src/utils/tui.ts`.
+- **TUI / non-TTY dual path**: On interactive terminals (`process.stdout.isTTY`), the archive command uses `TuiLogger` with `@clack/prompts` for spinners, progress bars, and colored output. On non-interactive terminals (piped output, CI), it falls back to the plain `Logger` with `[INFO]`/`[DEBUG]` text — zero ANSI escape codes. The gate is `isTTY()` in `src/tui/tty.ts`.
 - **TuiLogger extends Logger**: Scrapers, writers, and `http.ts` accept `Logger` as a parameter. At runtime in TTY mode they receive a `TuiLogger` via polymorphism. Tests use plain `Logger` directly and are unaffected by TUI changes.
 - **Spinner/progress log suppression**: When a clack spinner or progress bar is active, `TuiLogger` suppresses `info()`/`log()` calls (the animation already communicates status). `debug()` routes through `spinner.message()` / `progress.message()` when verbose is on. `warn()` and `error()` also route through `.message()` to avoid terminal corruption from stopping/restarting animations.
 - **No hard wrapping** — do not insert line breaks to wrap prose at a fixed column width. This applies everywhere: markdown files, commit messages, code comments, and any other written text. Let the editor or renderer handle soft wrapping. Hard wraps create noisy diffs when sentences are edited and serve no purpose in a modern toolchain (see **Hard Rules**).

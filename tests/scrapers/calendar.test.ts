@@ -7,7 +7,7 @@ const MOCK_CALENDAR_HTML = `
 <head><title>myusername - Calendar</title></head>
 <body>
 <div class="toolbar">
-  <a href="http://www.michaelweisz.com">My Website</a> |
+  <a href="http://www.mypersonalsite.com">My Website</a> |
   <a href="https://myusername.livejournal.com/">Recent Entries</a> |
   Archive |
   <a href="https://myusername.livejournal.com/friends/">Friends</a> |
@@ -22,7 +22,7 @@ const MOCK_CALENDAR_HTML = `
   <h2>Calendar for myusername</h2>
 </div>
 <div class="toolbar">
-  <a href="http://www.michaelweisz.com">My Website</a> |
+  <a href="http://www.mypersonalsite.com">My Website</a> |
   <a href="https://myusername.livejournal.com/">Recent Entries</a> |
   Archive |
   <a href="https://myusername.livejournal.com/friends/">Friends</a> |

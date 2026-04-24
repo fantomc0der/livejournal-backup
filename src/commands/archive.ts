@@ -2,8 +2,9 @@ import type { ArchiveOptions, DateEntry, LocalDate } from "../types.ts";
 import * as clack from "@clack/prompts";
 import pc from "picocolors";
 import { Logger } from "../utils/logger.ts";
-import { TuiLogger, isTTY } from "../utils/tui.ts";
-import { dualProgress, type DualProgress } from "../utils/dual-progress.ts";
+import { TuiLogger } from "../tui/logger.ts";
+import { isTTY } from "../tui/tty.ts";
+import { dualProgress, type DualProgress } from "../tui/progress.ts";
 import { scrapeCalendar } from "../scrapers/calendar.ts";
 import { scrapeYear } from "../scrapers/year.ts";
 import { scrapeDay } from "../scrapers/day.ts";
@@ -14,6 +15,10 @@ const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 
 function shortDate(month: number, day: number): string {
   return `${MONTH_SHORT[month - 1]} ${day}`;
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString("en-US");
 }
 
 function formatElapsed(ms: number): string {
@@ -129,7 +134,7 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
       if (range.dateFilter) {
         dates = dates.filter(range.dateFilter);
       }
-      logger.info(`Found ${dates.length} days with journal entries in ${year}`);
+      logger.info(`Found ${dates.length} dates with journal entries in ${year}`);
 
       for (const date of dates) {
         if (limitReached()) break;
@@ -162,9 +167,9 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
     await writeTableOfContents(options.outputDir, options.username, logger);
   }
   if (options.dryRun) {
-    logger.info(`Dry run complete: ${totalEntries} journal entries across ${totalDays} days`);
+    logger.info(`${pc.magenta("Dry run")} for archive complete: ${fmt(totalEntries)} journal entries across ${fmt(totalDays)} days`);
   } else {
-    logger.info(`Archive complete: ${totalEntries} journal entries across ${totalDays} days`);
+    logger.info(`Archive complete: ${fmt(totalEntries)} journal entries across ${fmt(totalDays)} days`);
   }
 }
 
@@ -215,9 +220,9 @@ async function runArchiveTui(options: ArchiveOptions): Promise<void> {
       );
     }
     if (options.dryRun) {
-      clack.outro(`Dry run complete: ${pc.bold(String(totalEntries))} journal entries across ${pc.bold(String(totalDays))} days (${elapsed})`);
+      clack.outro(`${pc.magenta("Dry run")} for archive complete: ${pc.bold(fmt(totalEntries))} journal entries across ${pc.bold(fmt(totalDays))} days (${elapsed})`);
     } else {
-      clack.outro(`Archive complete: ${pc.bold(String(totalEntries))} journal entries across ${pc.bold(String(totalDays))} days (${elapsed})`);
+      clack.outro(`Archive complete: ${pc.bold(fmt(totalEntries))} journal entries across ${pc.bold(fmt(totalDays))} days (${elapsed})`);
     }
   } catch (err) {
     cleanupTui(state, logger);
@@ -260,7 +265,7 @@ async function archiveTuiCore(
 
   const range = resolveRange(options);
   if (range.rangeLabel) {
-    clack.log.info(`Range: ${pc.cyan(range.rangeLabel)}`);
+    clack.log.info(`Range: ${pc.dim(range.rangeLabel)}`);
   }
 
   const limitReached = (): boolean =>
@@ -314,7 +319,7 @@ async function archiveTuiCore(
     if (range.dateFilter) {
       dates = dates.filter(range.dateFilter);
     }
-    stopSpinner(state, logger, `Found ${dates.length} days with journal entries in ${year}`);
+    stopSpinner(state, logger, `${pc.cyan(String(year))}: Found ${dates.length} dates with journal entries`);
 
     if (options.dryRun) {
       for (const date of dates) {
@@ -326,7 +331,7 @@ async function archiveTuiCore(
         yearEntries += date.entryCount ?? 0;
         yearDays++;
       }
-      clack.log.info(`${pc.cyan(String(year))}: ${pc.bold(String(yearEntries))} journal entries across ${pc.bold(String(yearDays))} days`);
+      clack.log.message(`${pc.green("✓")} Would save ${pc.bold(fmt(yearEntries))} journal entries across ${pc.bold(fmt(yearDays))} days`);
     } else {
       let eligible = dates;
       if (options.skipExisting) {
@@ -371,7 +376,7 @@ async function archiveTuiCore(
           }
         }
 
-        prog.stop(`${pc.green("✓")} ${year}: ${yearEntries} journal entries across ${yearDays} days`);
+        prog.stop(`${pc.green("✓")} Saved ${fmt(yearEntries)} journal entries across ${fmt(yearDays)} days`);
         logger.clearProgress();
         state.activeProgress = null;
       }

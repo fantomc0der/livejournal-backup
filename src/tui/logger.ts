@@ -1,14 +1,10 @@
 import * as clack from "@clack/prompts";
 import pc from "picocolors";
-import { Logger } from "./logger.ts";
+import { Logger } from "../utils/logger.ts";
 
 type SpinnerInstance = ReturnType<typeof clack.spinner>;
 interface ProgressInstance {
   message(text: string): void;
-}
-
-export function isTTY(): boolean {
-  return process.stdout.isTTY === true;
 }
 
 export class TuiLogger extends Logger {
