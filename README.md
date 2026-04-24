@@ -54,7 +54,7 @@ bun run src/index.ts archive --year 2002
 bun run src/index.ts archive --year 2002 --month 1
 ```
 
-### All options
+### All options LALALATEST
 
 ```
 bun run src/index.ts archive [username] [options]

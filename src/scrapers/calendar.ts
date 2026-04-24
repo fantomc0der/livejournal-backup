@@ -42,7 +42,7 @@ export function extractYearsFromHtml(html: string, username: string): number[] {
       let match: RegExpExecArray | null;
       yearInTextPattern.lastIndex = 0;
       while ((match = yearInTextPattern.exec(text)) !== null) {
-        const year = parseInt(match[1]!, 10);
+        const year = parseInt(match[1], 10);
         if (year >= 2000 && year <= 2030) {
           years.add(year);
         }
