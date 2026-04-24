@@ -2,6 +2,7 @@ import { Command, InvalidArgumentError } from "commander";
 import * as clack from "@clack/prompts";
 import pc from "picocolors";
 import { runArchive } from "./commands/archive.ts";
+import { validateUsername } from "./utils/http.ts";
 import { isTTY } from "./utils/tui.ts";
 
 function logError(message: string): void {
@@ -66,6 +67,13 @@ export function buildCli(): Command {
 
       if (opts.day !== undefined && (opts.year === undefined || opts.month === undefined)) {
         logError("--day requires both --year and --month to be specified");
+        process.exit(1);
+      }
+
+      try {
+        await validateUsername(username);
+      } catch (err) {
+        logError(err instanceof Error ? err.message : String(err));
         process.exit(1);
       }
 

@@ -40,6 +40,21 @@ export async function fetchWithRetry(
   throw lastError ?? new Error(`Failed to fetch ${url} after ${retries + 1} attempts`);
 }
 
+export async function validateUsername(username: string): Promise<void> {
+  const url = `https://${username}.livejournal.com/calendar/`;
+  const response = await fetch(url, {
+    method: "HEAD",
+    headers: { "User-Agent": USER_AGENT },
+  });
+
+  if (response.status === 404) {
+    throw new Error(`LiveJournal user "${username}" does not exist`);
+  }
+  if (response.status === 410) {
+    throw new Error(`LiveJournal user "${username}" has been purged and no longer exists`);
+  }
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
