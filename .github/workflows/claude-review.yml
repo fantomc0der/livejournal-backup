@@ -33,6 +33,8 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           base_branch: ${{ github.event.pull_request.base.ref }}
+          # Required for use_sticky_comment to work alongside `prompt:` — see https://github.com/anthropics/claude-code-action/issues/1108
+          track_progress: true
           use_sticky_comment: true
           include_fix_links: true
           prompt: |
