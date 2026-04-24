@@ -25,7 +25,7 @@ If you decide mid-review that a PR needs more work, **convert it back to a draft
 
 - `.github/workflows/ci-build.yml` — existing typecheck + test + build workflow.
 - `.github/workflows/enforce-draft.yml` — on `pull_request: opened`, if the PR was opened non-draft, converts it to a draft via the GraphQL `convertPullRequestToDraft` mutation and posts an explanatory comment. Enforces that all PRs start as drafts so the gate never fires on in-progress work.
-- `.github/workflows/claude-review.yml` — runs the Anthropic action when a PR is opened, synchronized, or marked ready for review. Skipped while the PR is a draft.
+- `.github/workflows/claude-review.yml` — runs the Anthropic action when a PR is synchronized or marked ready for review. Skipped while the PR is a draft. Does not trigger on `opened`: `enforce-draft.yml` converts new PRs to drafts in parallel, but both workflows see the same frozen event payload, so a Claude run triggered by `opened` would proceed before the draft conversion is visible. Triggering only on `ready_for_review` / `synchronize` sidesteps that race.
 - `.github/workflows/auto-merge.yml` — the gate. Triggered by `workflow_run` completion of either `CI Build` or `Claude PR Review`.
 - `.github/workflows/claude-fix.yml` — on-demand. Fires when a PR comment contains `@claude`; runs `claude-code-action` to push code changes directly to the branch.
 

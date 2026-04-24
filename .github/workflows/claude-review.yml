@@ -1,10 +1,13 @@
 name: Claude PR Review
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [synchronize, ready_for_review]
 
 jobs:
   review:
+    # `synchronize` fires on pushes to draft PRs too, so the draft guard still matters.
+    # `opened` is intentionally absent: `enforce-draft.yml` converts every non-draft PR to a draft on open, but both workflows fire in parallel from the same event.
+    #  Claude Review would see `draft == false` in its frozen payload and run anyway. Relying on `ready_for_review` sidesteps the race entirely.
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:

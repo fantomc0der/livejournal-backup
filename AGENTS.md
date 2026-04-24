@@ -286,7 +286,7 @@ In addition to CI Build, the repo has five PR-automation workflows:
 
 - **`typecheck-review.yml`** — runs `bun run typecheck` against the PR and posts a single updating comment listing any tsc errors grouped by file, with deep links into the diff. Independent of the Claude review flow.
 - **`enforce-draft.yml`** — on `pull_request: opened`, converts any non-draft PR to a draft so the merge gate never fires on in-progress work.
-- **`claude-review.yml`** — runs `anthropics/claude-code-action` on a ready-for-review PR. Posts inline comments and a summary ending in `REVIEW: PASS` or `REVIEW: FAIL`.
+- **`claude-review.yml`** — runs `anthropics/claude-code-action` on a ready-for-review PR (triggers: `ready_for_review`, `synchronize`; intentionally not `opened` — see `docs/pr-automation.md`). Posts inline comments and a summary ending in `REVIEW: PASS` or `REVIEW: FAIL`.
 - **`auto-merge.yml`** — triggered by `workflow_run` completion of `CI Build` or `Claude PR Review`. Approves and squash-merges the PR only if every gate passes.
 - **`claude-fix.yml`** — triggered by PR comments containing `@claude`. Runs `anthropics/claude-code-action` to push fixes directly to the branch.
 
