@@ -19,13 +19,68 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         shell: bash
       - uses: actions/github-script@v7
+        env:
+          TSC_OUTPUT: ${{ steps.tsc.outputs.output }}
         with:
           script: |
-            const output = `${{ steps.tsc.outputs.output }}`;
             const marker = '<!-- typecheck-review -->';
-            const body = output.trim()
-              ? `${marker}\n### TypeScript errors\n\`\`\`\n${output.trim()}\n\`\`\``
-              : `${marker}\n### TypeScript\nNo errors found.`;
+            const raw = process.env.TSC_OUTPUT || '';
+            const sha = context.payload.pull_request.head.sha;
+            const repoSlug = `${context.repo.owner}/${context.repo.repo}`;
+
+            const errorRe = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.+)$/;
+            const errors = [];
+            let current = null;
+            for (const line of raw.split('\n')) {
+              if (line.startsWith('$ ')) continue; // bun command echo
+              const m = line.match(errorRe);
+              if (m) {
+                current = {
+                  file: m[1],
+                  line: Number(m[2]),
+                  col: Number(m[3]),
+                  code: m[4],
+                  message: m[5],
+                  details: [],
+                };
+                errors.push(current);
+              } else if (current && line.trim()) {
+                current.details.push(line.trim());
+              }
+            }
+
+            let body;
+            if (errors.length === 0) {
+              body = `${marker}\n### TypeScript\n:white_check_mark: No errors found.`;
+            } else {
+              const byFile = new Map();
+              for (const e of errors) {
+                if (!byFile.has(e.file)) byFile.set(e.file, []);
+                byFile.get(e.file).push(e);
+              }
+              const errWord = errors.length === 1 ? 'error' : 'errors';
+              const fileWord = byFile.size === 1 ? 'file' : 'files';
+              const parts = [
+                marker,
+                `### :x: TypeScript — ${errors.length} ${errWord} in ${byFile.size} ${fileWord}`,
+                '',
+              ];
+              for (const [file, errs] of byFile) {
+                parts.push(`<details open><summary><code>${file}</code> — ${errs.length} ${errs.length === 1 ? 'error' : 'errors'}</summary>`);
+                parts.push('');
+                for (const e of errs) {
+                  const href = `https://github.com/${repoSlug}/blob/${sha}/${file}#L${e.line}`;
+                  parts.push(`- [\`${e.line}:${e.col}\`](${href}) **${e.code}** — ${e.message}`);
+                  for (const d of e.details) {
+                    parts.push(`  - ${d}`);
+                  }
+                }
+                parts.push('');
+                parts.push('</details>');
+                parts.push('');
+              }
+              body = parts.join('\n').trimEnd();
+            }
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
