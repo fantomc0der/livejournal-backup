@@ -1,0 +1,118 @@
+name: Dependabot Fix
+
+on:
+  schedule:
+    # First day of each month at 09:17 UTC
+    - cron: "17 9 1 * *"
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Check for open Dependabot alerts
+        id: alerts
+        env:
+          GH_TOKEN: ${{ secrets.PR_AUTOMATION_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          count=$(gh api "repos/$REPO/dependabot/alerts" \
+            --jq '[.[] | select(.state == "open")] | length')
+          echo "open_count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" = "0" ]; then
+            echo "No open Dependabot alerts. Nothing to do."
+          else
+            echo "Found $count open Dependabot alert(s)."
+          fi
+
+      - name: Close any previous scheduled Dependabot fix PRs
+        if: steps.alerts.outputs.open_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.PR_AUTOMATION_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Find all open PRs whose title ends with [SCHEDULED] (our marker)
+          prs=$(gh pr list --repo "$REPO" --state open \
+            --json number,title \
+            --jq '[.[] | select(.title | endswith("[SCHEDULED]")) | .number]')
+          count=$(echo "$prs" | jq 'length')
+          if [ "$count" = "0" ]; then
+            echo "No previous scheduled PRs to close."
+          else
+            echo "$prs" | jq -r '.[]' | while read -r pr; do
+              echo "Closing previous scheduled PR #$pr"
+              gh pr close "$pr" --repo "$REPO" \
+                --comment "Superseded by a new scheduled Dependabot fix run. Closing in favor of a fresh resolution from current main."
+            done
+          fi
+
+      - name: Checkout main
+        if: steps.alerts.outputs.open_count != '0'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          token: ${{ secrets.PR_AUTOMATION_PAT }}
+
+      - name: Create branch for fix
+        if: steps.alerts.outputs.open_count != '0'
+        run: |
+          set -euo pipefail
+          branch="dependabot-fix/scheduled-$(date -u +%Y-%m-%d)"
+          git checkout -b "$branch"
+          echo "BRANCH=$branch" >> "$GITHUB_ENV"
+
+      - name: Resolve Dependabot alerts with Claude
+        if: steps.alerts.outputs.open_count != '0'
+        uses: anthropics/claude-code-action@v1.0.88
+        env:
+          ALERT_COUNT: ${{ steps.alerts.outputs.open_count }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.PR_AUTOMATION_PAT }}
+          base_branch: main
+          claude_args: |
+            --allowedTools "Bash(gh api:*),Bash(bun install:*),Bash(bun run build:*),Bash(bun test:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*)"
+          prompt: |
+            REPO: ${{ github.repository }}
+            BRANCH: ${{ env.BRANCH }}
+            ALERT COUNT: ${{ steps.alerts.outputs.open_count }}
+
+            You are resolving open Dependabot security alerts for this repository. Here are your instructions:
+
+            1. Fetch the list of open alerts:
+               gh api "repos/${{ github.repository }}/dependabot/alerts" --jq '[.[] | select(.state == "open")]'
+
+            2. For each alert, identify the affected package and the recommended fix (usually a version bump in package.json).
+
+            3. Update package.json to resolve all alerts. Prefer the minimum version that satisfies each advisory — do not pin to exact versions unless the package is currently exact-pinned.
+
+            4. Run `bun install` to update bun.lockb.
+
+            5. Run `bun test` to confirm no tests broke. If tests break due to a version bump, investigate the breaking change and fix the code, or pick the lowest patched version that passes tests. Do not skip or delete tests.
+
+            6. Run `bun run build` to confirm the build still succeeds.
+
+            7. Stage all changed files and commit:
+               git add package.json bun.lockb
+               git commit -m "chore: bump dependencies to resolve Dependabot alerts [SCHEDULED]"
+
+            8. Push the branch:
+               git push origin "${{ env.BRANCH }}"
+
+            9. Open a pull request against main with this exact title format (replace N with the actual count):
+               "chore: resolve N Dependabot security alert(s) [SCHEDULED]"
+
+               Body should list each resolved alert (package, old version, new version, CVE/advisory ID if available).
+
+            Important constraints:
+            - Never use `@ts-ignore`, `@ts-expect-error`, or `as any`.
+            - Do not hard-wrap prose at a fixed column width anywhere.
+            - Do not include any real usernames in committed content.
+            - If you cannot resolve an alert without breaking tests or the build, note it clearly in the PR body but still open the PR for the alerts you could resolve.
