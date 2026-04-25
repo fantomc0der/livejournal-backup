@@ -30,7 +30,7 @@ This lets you run the CLI without passing a username every time. The `.env` file
 
 ## Usage
 
-> **Shortcut:** the examples below use `bun run src/index.ts` for clarity, but the repo ships with `cli.sh` and `cli.ps1` wrappers that forward to the `start` script in `package.json`. You can replace `bun run src/index.ts` with `./cli.sh` (bash) or `.\cli.ps1` (PowerShell) in any command — e.g. `./cli.sh archive --year 2002`.
+> **Shortcut:** the examples below use `bun run src/index.ts` for clarity, but the repo ships with `cli.sh` and `cli.ps1` wrappers that invoke the CLI directly. You can replace `bun run src/index.ts` with `./cli.sh` (bash) or `.\cli.ps1` (PowerShell) in any command — e.g. `./cli.sh archive --year 2002`.
 
 ### Archive all entries (using username from .env)
 
