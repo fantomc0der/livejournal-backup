@@ -1,6 +1,6 @@
 ---
 name: create-pull-request
-description: Create or update a pull request for the current branch using the gh CLI, with a thorough description focused on the WHY and HOW of the changes. Use when the user wants to open a PR for their current branch, asks to "make a PR", "open a PR", "create a pull request", "push this up for review", or asks to refresh an existing PR's description after more commits.
+description: Create or update a pull request for the current branch using the gh CLI, with a thorough description focused on the MOTIVATION and APPROACH of the changes. Use when the user wants to open a PR for their current branch, asks to "make a PR", "open a PR", "create a pull request", "push this up for review", or asks to refresh an existing PR's description after more commits.
 compatibility: Requires git and the gh CLI. Assumes gh is already installed and authenticated against the current repository.
 ---
 
@@ -87,15 +87,16 @@ The body must answer **why** before **how**. Use this structure (skip any sectio
 
 One sentence: what problem this PR solves or what capability it adds. Plain language.
 
-## Why
+## Motivation
 
-The motivation. Cover the parts that apply:
+Why this change exists. Cover the parts that apply:
 - What was wrong, missing, or limiting before this PR
+- The capability, fix, or improvement this PR provides
 - The user impact, bug, or constraint that drove the work
 - Prior discussions, issues, or tickets (link them)
 - Why now — what would happen if this didn't ship
 
-## How
+## Approach
 
 The technical approach and the reasoning. Cover:
 - The shape of the change (which modules, which interfaces)
@@ -105,7 +106,7 @@ The technical approach and the reasoning. Cover:
 
 ## Notes for reviewers
 
-Optional. Areas of low confidence, follow-ups intentionally deferred, manual testing performed, things to focus on.
+Areas of low confidence, follow-ups intentionally deferred, manual testing performed, things to focus on, drive-by changes a reviewer might wonder about. Skip only if there is genuinely nothing worth flagging.
 ```
 
 Body rules:
