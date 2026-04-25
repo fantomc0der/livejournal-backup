@@ -56,3 +56,27 @@ jobs:
             Be strict: if you found any bug, missing test, or Hard Rule violation, use FAIL.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
+      # Surface the verdict as the job status so the PR's check rollup reflects PASS/FAIL.
+      # The action updates a sticky comment in place, so a FAIL verdict is otherwise invisible
+      # in the GitHub UI — the rollup only sees that this workflow completed without erroring.
+      - name: Reflect verdict as job status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          verdict=$(gh pr view "$PR" --repo "$REPO" --json comments \
+            --jq '[.comments[] | select(.body | test("REVIEW: (PASS|FAIL)"))] | last | .body' \
+            | grep -oE 'REVIEW: (PASS|FAIL)' | head -1 || echo "")
+          echo "Claude verdict: ${verdict:-(none)}"
+          if [ "$verdict" = "REVIEW: PASS" ]; then
+            exit 0
+          fi
+          if [ "$verdict" = "REVIEW: FAIL" ]; then
+            echo "::error::Claude voted REVIEW: FAIL — see the review comment for details."
+            exit 1
+          fi
+          echo "::error::Claude did not post a recognized verdict. Check the review comment."
+          exit 1
