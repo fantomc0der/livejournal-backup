@@ -1,3 +1,2 @@
-#!/usr/bin/env pwsh
-Push-Location $PSScriptRoot
-try { bun start @args } finally { Pop-Location }
+$ScriptDir = $PSScriptRoot
+bun run "$ScriptDir\src\index.ts" @args

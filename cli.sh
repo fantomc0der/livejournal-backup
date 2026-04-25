@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR" && bun start "$@"
+bun run "$SCRIPT_DIR/src/index.ts" "$@"
