@@ -34,20 +34,31 @@ export function extractYearsFromHtml(html: string, username: string): number[] {
     }
   });
 
+  // Scan text nodes only within containers that already hold at least one year link.
+  // This picks up the current year (rendered as plain text, not a link) without
+  // also matching years in LJ's injected JS blobs elsewhere on the page.
   const yearInTextPattern = /\b(20\d{2})\b/g;
-
-  $("*").contents().each((_i, node) => {
-    if (node.type === "text") {
-      const text = (node as { data?: string }).data ?? "";
-      let match: RegExpExecArray | null;
-      yearInTextPattern.lastIndex = 0;
-      while ((match = yearInTextPattern.exec(text)) !== null) {
-        const year = parseInt(match[1]!, 10);
-        if (year >= 2000 && year <= 2030) {
-          years.add(year);
+  const containers = new Set<ReturnType<typeof $>[0]>();
+  $("a").each((_i, el) => {
+    const href = $(el).attr("href") ?? "";
+    if (yearLinkPattern.test(href) && el.parent) {
+      containers.add(el.parent);
+    }
+  });
+  containers.forEach((container) => {
+    $(container).contents().each((_i, node) => {
+      if (node.type === "text") {
+        const text = (node as { data?: string }).data ?? "";
+        let match: RegExpExecArray | null;
+        yearInTextPattern.lastIndex = 0;
+        while ((match = yearInTextPattern.exec(text)) !== null) {
+          const year = parseInt(match[1]!, 10);
+          if (year >= 2000 && year <= 2030) {
+            years.add(year);
+          }
         }
       }
-    }
+    });
   });
 
   return Array.from(years).sort((a, b) => a - b);

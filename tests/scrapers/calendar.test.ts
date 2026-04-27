@@ -99,4 +99,23 @@ describe("extractYearsFromHtml", () => {
     expect(years).toContain(2004);
     expect(years).toContain(2005);
   });
+
+  it("ignores years in script tags and unrelated page content", () => {
+    const html = `<html><body>
+      <script>var x = {"newyear2026":true,"lastDate":"2026,3,27","tag":"#photo2023"};</script>
+      <div>Copyright 2024 LiveJournal</div>
+      <td>
+        <a href="https://myusername.livejournal.com/2002/">2002</a> |
+        <a href="https://myusername.livejournal.com/2003/">2003</a> |
+        2004
+      </td>
+    </body></html>`;
+    const years = extractYearsFromHtml(html, "myusername");
+    expect(years).toContain(2002);
+    expect(years).toContain(2003);
+    expect(years).toContain(2004);
+    expect(years).not.toContain(2023);
+    expect(years).not.toContain(2024);
+    expect(years).not.toContain(2026);
+  });
 });
