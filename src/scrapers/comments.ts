@@ -186,10 +186,17 @@ function findLegacyTimestamp(
   $cmt: cheerio.Cheerio<AnyNode>
 ): string {
   // The timestamp is inside a <span title="..."> within the comment header.
-  // Visible text contains a 4-digit year; the title contains a relative phrase
-  // like "11 minutes after journal entry".
+  // Scope to the header region (comment_bar_one for one S1 variant, the first
+  // row of the cmtbar table for the other) so user-authored body content like
+  // "<span>We met in 2003</span>" can't shadow the real timestamp.
+  let $headers: cheerio.Cheerio<AnyNode> = $cmt.find(".comment_bar_one, .comment_bar_alt");
+  if ($headers.length === 0) {
+    $headers = $cmt.find('table[id^="cmtbar"]').find("> tbody > tr, > tr").first();
+  }
+  if ($headers.length === 0) $headers = $cmt;
+
   let timestampText = "";
-  $cmt.find("span[title]").each((_i, sp) => {
+  $headers.find("span[title]").each((_i, sp) => {
     const text = $(sp).text().trim();
     if (/(?:19|20)\d{2}/.test(text)) {
       timestampText = text;
@@ -284,7 +291,7 @@ function divIsLegacyFooter(
   let nonLinkText = ($d.text() ?? "").trim();
   $links.toArray().forEach((a) => {
     const linkText = ($(a as Element).text() ?? "").trim();
-    if (linkText) nonLinkText = nonLinkText.replace(linkText, "");
+    if (linkText) nonLinkText = nonLinkText.replaceAll(linkText, "");
   });
   nonLinkText = nonLinkText.replace(/[()|·•\s]/g, "");
   return nonLinkText.length === 0;
@@ -296,6 +303,9 @@ function rowHasReplyOrParentLink(
 ): boolean {
   const links = $tr.find("a").toArray();
   if (links.length === 0) return false;
+  // The "Link" arm is safe here because the only place a "(Link)" anchor appears
+  // in a cmtbar layout is inside the metadata sub-table, which the caller already
+  // skips via the "row contains a nested <table>" guard before invoking this.
   return links.some((a) => {
     const $a = $(a as Element);
     const href = $a.attr("href") ?? "";

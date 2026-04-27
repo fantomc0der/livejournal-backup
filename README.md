@@ -203,7 +203,7 @@ src/
     calendar.ts               # Discovers available years
     year.ts                   # Discovers entry dates in a year
     day.ts                    # Extracts entries from a day page
-    comments.ts               # Extracts comments from an entry's comment page
+    comments.ts               # Fetches /{post-id}.html?nojs=1&view=comments → extracts comments with nesting depth across modern (b-tree-twig) and S1 legacy (ljcmt{id}) themes
   converters/
     html-to-markdown.ts       # HTML to Markdown conversion
   writers/

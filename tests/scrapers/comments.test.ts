@@ -306,6 +306,36 @@ describe("extractCommentsFromHtml S1 legacy comment_bar layout", () => {
     expect(comments[0]?.contentHtml).not.toContain("Thread");
     expect(comments[0]?.contentHtml).not.toContain("data-ljuser");
   });
+
+  it("computes nesting depth from margin-left in comment_bar_one variant", () => {
+    const indented = LEGACY_COMMENT_BAR_HTML.replace(
+      `id="ljcmt600" style="margin-left: 0px; margin-top: 5px"`,
+      `id="ljcmt600" style="margin-left: 25px; margin-top: 5px"`
+    );
+    const comments = extractCommentsFromHtml(indented);
+    expect(comments[0]?.depth).toBe(0);
+    expect(comments[1]?.depth).toBe(1);
+  });
+
+  it("ignores year-bearing spans in the body when extracting timestamp", () => {
+    const html = `<!DOCTYPE html><html><body>
+      <div id="ljcmt900" style="margin-left:0px;">
+        <a name="t900"></a>
+        <div class="comment_bar_one">
+          <table><tr><td>
+            <table><tr><th>From:</th>
+              <td><span class="ljuser i-ljuser i-ljuser-type-P" data-ljuser="commenter9" lj:user="commenter9"><a href="https://commenter9.livejournal.com/" class="i-ljuser-username"><b>commenter9</b></a></span></td>
+            </tr><tr><th>Date:</th>
+              <td><span title="x minutes after journal entry">March 1st, 2005 09:00 am (UTC)</span></td>
+            </tr></table>
+          </td></tr></table>
+        </div>
+        <div style="margin-left: 5px">we met in <span title="some hint">2003</span> and it was great</div>
+      </div>
+    </body></html>`;
+    const comments = extractCommentsFromHtml(html);
+    expect(comments[0]?.timestampText).toBe("March 1st, 2005 09:00 am (UTC)");
+  });
 });
 
 describe("extractCommentsFromHtml S1 legacy cmtbar layout", () => {
