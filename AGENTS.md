@@ -138,7 +138,7 @@ Tests use `bun:test` (`describe` / `it` / `expect`). **No real HTTP calls are ma
 bun test
 ```
 
-103 tests across 6 files should all pass in under 200 ms.
+115 tests across 6 files should all pass in under 200 ms.
 
 ### When testing the CLI against a live account
 

@@ -170,7 +170,7 @@ hey this is my first post here...
 great post!
 
 > **[anotheruser](https://anotheruser.livejournal.com/)** — [Jan 24, 2002](https://example.livejournal.com/123.html?thread=789)
->
+
 > agreed!
 
 </details>
