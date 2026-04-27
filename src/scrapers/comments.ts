@@ -258,10 +258,13 @@ function extractLegacyBody(
   $clone.find('[id^="ljqrt"], [id="ljqrttopcomment"], [id="ljqrtbottomcomment"]').remove();
   $clone.find("form, input, button, select, textarea").remove();
 
-  // Strip orphan permalink anchors (e.g. a leftover bare "(Link)" line)
+  // Strip orphan permalink anchors (e.g. a leftover bare "(Link)" line). Use a
+  // word-boundary regex so a body link to ?thread=500 isn't matched when this
+  // comment's id is "5".
+  const exactThreadPattern = new RegExp(`[?&]thread=${threadNumeric}(?:#t${threadNumeric}\\b|\\b)`);
   $clone.find("a[href*='thread=']").each((_i, a) => {
     const href = $(a).attr("href") ?? "";
-    if (href.includes(`thread=${threadNumeric}`)) {
+    if (exactThreadPattern.test(href)) {
       $(a).remove();
     }
   });

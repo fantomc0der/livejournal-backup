@@ -336,6 +336,43 @@ describe("extractCommentsFromHtml S1 legacy comment_bar layout", () => {
     const comments = extractCommentsFromHtml(html);
     expect(comments[0]?.timestampText).toBe("March 1st, 2005 09:00 am (UTC)");
   });
+
+  it("treats anonymous comments as Anonymous when no ljuser span is present", () => {
+    const html = `<!DOCTYPE html><html><body>
+      <div id="ljcmt910" style="margin-left:0px;">
+        <a name="t910"></a>
+        <div class="comment_bar_one">
+          <table><tr><td><table><tr><th>From:</th><td>(Anonymous)</td></tr>
+          <tr><th>Date:</th><td><span title="2 hours after journal entry">January 1st, 2004 12:00:00 (UTC)</span></td></tr>
+          </table></td></tr><tr><td><strong>(<a href="https://author.livejournal.com/9.html?thread=910#t910">Link</a>)</strong></td></tr></table>
+        </div>
+        <div style="margin-left: 5px">anon body</div>
+      </div>
+    </body></html>`;
+    const comments = extractCommentsFromHtml(html);
+    expect(comments[0]?.username).toBe("Anonymous");
+    expect(comments[0]?.userUrl).toBe("");
+    expect(comments[0]?.contentHtml).toContain("anon body");
+  });
+
+  it("does not strip body links whose thread id is a substring of this comment's id", () => {
+    // Comment id is t5; body has a link to ?thread=500 — must survive.
+    const html = `<!DOCTYPE html><html><body>
+      <div id="ljcmt5" style="margin-left:0px;">
+        <a name="t5"></a>
+        <div class="comment_bar_one">
+          <table><tr><td><table><tr><th>From:</th>
+            <td><span class="ljuser" data-ljuser="commenter10" lj:user="commenter10"><a href="https://commenter10.livejournal.com/" class="i-ljuser-username"><b>commenter10</b></a></span></td>
+          </tr><tr><th>Date:</th><td><span title="2 hours after">June 18th, 2003 09:57 am (UTC)</span></td></tr></table>
+          </td></tr><tr><td><strong>(<a href="https://author.livejournal.com/9.html?thread=5#t5">Link</a>)</strong></td></tr></table>
+        </div>
+        <div style="margin-left: 5px">see <a href="https://author.livejournal.com/9.html?thread=500#t500">this other thread</a> for context</div>
+      </div>
+    </body></html>`;
+    const comments = extractCommentsFromHtml(html);
+    expect(comments[0]?.contentHtml).toContain("thread=500");
+    expect(comments[0]?.contentHtml).toContain("this other thread");
+  });
 });
 
 describe("extractCommentsFromHtml S1 legacy cmtbar layout", () => {
@@ -373,21 +410,28 @@ describe("extractCommentsFromHtml S1 legacy cmtbar layout", () => {
     expect(comments[1]?.permalinkUrl).toContain("thread=750");
   });
 
-  it("treats anonymous comments as Anonymous when no ljuser span is present", () => {
+  it("treats anonymous comments in cmtbar layout as Anonymous when no ljuser span is present", () => {
     const html = `<!DOCTYPE html><html><body>
-      <div id="ljcmt900" style="margin-left:0px;">
-        <a name="t900"></a>
-        <div class="comment_bar_one">
-          <table><tr><td><table><tr><th>From:</th><td>(Anonymous)</td></tr>
-          <tr><th>Date:</th><td><span title="2 hours after journal entry">January 1st, 2004 12:00:00 (UTC)</span></td></tr>
-          </table></td></tr><tr><td><strong>(<a href="https://author.livejournal.com/9.html?thread=900#t900">Link</a>)</strong></td></tr></table>
+      <div id="ljcmt920" style="margin-left:0px;">
+        <a name="t920"></a>
+        <div align='right' class='entry'>
+          <table id='cmtbar920' width='95%'>
+            <tr><td>
+              <table><tr>
+                <td>(Anonymous)</td>
+                <td><table><tr><td>Subject:</td><td>(no subject)</td></tr><tr><td>Link:</td><td>(<a href='https://author.livejournal.com/49.html?thread=920#t920'>Link</a>)</td></tr><tr><td>Time:</td><td><span title="3 hours after journal entry">2004-02-15 09:00 am (UTC)</span></td></tr></table></td>
+              </tr></table>
+            </td></tr>
+            <tr><td>cmtbar anon body</td></tr>
+            <tr><td>(<a href="https://author.livejournal.com/49.html?replyto=920">Reply</a>) (<a href='https://author.livejournal.com/49.html?thread=920#t920'>Thread</a>)</td></tr>
+          </table>
         </div>
-        <div style="margin-left: 5px">anon body</div>
       </div>
     </body></html>`;
     const comments = extractCommentsFromHtml(html);
     expect(comments[0]?.username).toBe("Anonymous");
     expect(comments[0]?.userUrl).toBe("");
-    expect(comments[0]?.contentHtml).toContain("anon body");
+    expect(comments[0]?.contentHtml).toContain("cmtbar anon body");
+    expect(comments[0]?.timestampText).toBe("2004-02-15 09:00 am (UTC)");
   });
 });
