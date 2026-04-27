@@ -1,6 +1,7 @@
 import { mkdir, writeFile, access, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { JournalEntry, DateEntry } from "../types.ts";
+import type { Comment } from "../scrapers/comments.ts";
 import { htmlToMarkdown } from "../converters/html-to-markdown.ts";
 import type { Logger } from "../utils/logger.ts";
 
@@ -24,19 +25,24 @@ export async function writeDayFile(
   outputDir: string,
   date: DateEntry,
   entries: JournalEntry[],
-  logger: Logger
+  logger: Logger,
+  commentsByEntryUrl?: Map<string, Comment[]>
 ): Promise<void> {
   if (entries.length === 0) return;
 
   const filePath = getDayFilePath(outputDir, date);
   await mkdir(join(outputDir, String(date.year)), { recursive: true });
 
-  const content = buildDayMarkdown(date, entries);
+  const content = buildDayMarkdown(date, entries, commentsByEntryUrl);
   await writeFile(filePath, content, "utf-8");
   logger.info(`Written: ${filePath}`);
 }
 
-function buildDayMarkdown(date: DateEntry, entries: JournalEntry[]): string {
+function buildDayMarkdown(
+  date: DateEntry,
+  entries: JournalEntry[],
+  commentsByEntryUrl?: Map<string, Comment[]>
+): string {
   const monthName = MONTH_NAMES[date.month - 1] ?? String(date.month);
   const lines: string[] = [
     `# ${monthName} ${date.day}, ${date.year}`,
@@ -60,6 +66,14 @@ function buildDayMarkdown(date: DateEntry, entries: JournalEntry[]): string {
       lines.push("");
     }
 
+    if (commentsByEntryUrl) {
+      const comments = commentsByEntryUrl.get(entry.url) ?? [];
+      if (comments.length > 0) {
+        lines.push(buildCommentsSection(comments));
+        lines.push("");
+      }
+    }
+
     if (index < entries.length - 1) {
       lines.push("---");
       lines.push("");
@@ -67,6 +81,45 @@ function buildDayMarkdown(date: DateEntry, entries: JournalEntry[]): string {
   });
 
   return lines.join("\n");
+}
+
+function buildCommentsSection(comments: Comment[]): string {
+  const lines: string[] = [
+    `<details>`,
+    `<summary>${comments.length} ${comments.length === 1 ? "comment" : "comments"}</summary>`,
+    "",
+  ];
+
+  for (const comment of comments) {
+    buildCommentLines(comment, lines);
+  }
+
+  lines.push("</details>");
+  return lines.join("\n");
+}
+
+function buildCommentLines(comment: Comment, lines: string[]): string[] {
+  const indent = "  ".repeat(comment.depth);
+  const userDisplay = comment.userUrl
+    ? `[${comment.username}](${comment.userUrl})`
+    : comment.username;
+  const timestampDisplay = comment.permalinkUrl
+    ? `[${comment.timestampText}](${comment.permalinkUrl})`
+    : comment.timestampText;
+
+  const headerLine = `${indent}**${userDisplay}** — ${timestampDisplay}`;
+  lines.push(headerLine);
+  lines.push("");
+
+  const contentMd = htmlToMarkdown(comment.contentHtml);
+  if (contentMd) {
+    for (const contentLine of contentMd.split("\n")) {
+      lines.push(`${indent}${contentLine}`);
+    }
+    lines.push("");
+  }
+
+  return lines;
 }
 
 export async function writeTableOfContents(

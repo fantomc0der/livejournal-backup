@@ -107,7 +107,12 @@ function parseEntryElement(
 
   if (!content.trim()) return null;
 
-  return { subject, time, url: entryUrl, content };
+  // Extract comment count from the day page link (e.g. "3 Comments")
+  const commentCountText = $el.find(`a[href$="${entryUrl.replace(/^https?:\/\/[^/]+/, "")}#comments"], a[href*="view=comments"]`).first().text().trim();
+  const commentCountMatch = /^(\d+)/.exec(commentCountText);
+  const commentCount = commentCountMatch ? parseInt(commentCountMatch[1]!, 10) : undefined;
+
+  return { subject, time, url: entryUrl, content, commentCount };
 }
 
 function extractEntriesFromTitleAnchors(
