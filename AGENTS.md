@@ -11,6 +11,7 @@ These rules apply to every action — code, commits, comments, markdown, and CLI
 1. **No real usernames in committed content.** Never include actual LiveJournal usernames in code, commit messages, branch names, or any other content that gets committed to the repository. Read `LJ_USERNAME` from `.env` at runtime; refer to users generically (e.g. "the configured user", "a test user") in prose.
 2. **No hard wrapping.** Do not insert line breaks to wrap prose at a fixed column width. This applies everywhere: markdown files, commit messages, code comments, PR descriptions, and any other written text. Let the editor or renderer handle soft wrapping. Hard wraps create noisy diffs when sentences are edited and serve no purpose in a modern toolchain.
 3. **No type-safety escape hatches.** Never use `@ts-ignore`, `@ts-expect-error`, or `as any`.
+4. **Keep documentation in sync.** Whenever you add, remove, or rename a CLI option, file, scraper, or output format, update `README.md` and `AGENTS.md` in the same commit. Specifically: the "All options" table and examples in `README.md`, the Architecture section in `README.md`, the Output Format section in `README.md`, the CLI Reference in `AGENTS.md`, and the Project Structure in `AGENTS.md`. Stale docs are a bug.
 
 ---
 
@@ -137,7 +138,7 @@ Tests use `bun:test` (`describe` / `it` / `expect`). **No real HTTP calls are ma
 bun test
 ```
 
-103 tests across 6 files should all pass in under 200 ms.
+115 tests across 6 files should all pass in under 200 ms.
 
 ### When testing the CLI against a live account
 
