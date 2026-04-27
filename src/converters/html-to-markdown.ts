@@ -87,7 +87,10 @@ function countDirectCells(parent: Node | null): number {
   for (let i = 0; i < parent.childNodes.length; i++) {
     const child = parent.childNodes[i];
     if (!child) continue;
-    if (child.nodeName === "TD" || child.nodeName === "TH") count++;
+    if (child.nodeName === "TD" || child.nodeName === "TH") {
+      const span = parseInt((child as HTMLElement).getAttribute?.("colspan") ?? "1", 10);
+      count += Number.isFinite(span) && span > 0 ? span : 1;
+    }
   }
   return count;
 }

@@ -288,6 +288,19 @@ describe("htmlToMarkdown", () => {
     expect(result).toContain("| Magic Number | 17 |");
   });
 
+  it("separator column count respects colspan on first-row cells", () => {
+    const html = `
+      <table>
+        <tr><td colspan="2">Header</td></tr>
+        <tr><td>Left</td><td>Right</td></tr>
+      </table>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("| Header |");
+    expect(result).toContain("| --- | --- |");
+    expect(result).toContain("| Left | Right |");
+  });
+
   it("strips form/input/button elements from table cells", () => {
     const html = `
       <table>
@@ -339,7 +352,7 @@ describe("htmlToMarkdown", () => {
     `;
     const result = htmlToMarkdown(html);
     expect(result).toContain("| someuser |");
-    expect(result).toContain("| --- |");
+    expect(result).toContain("| --- | --- |");
     expect(result).toContain("| Magic Number | 17 |");
     expect(result).toContain("| Job | Celebrity Nobody |");
     expect(result).toContain("| Colour |");
