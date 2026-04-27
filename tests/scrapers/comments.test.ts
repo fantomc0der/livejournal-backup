@@ -410,6 +410,32 @@ describe("extractCommentsFromHtml S1 legacy cmtbar layout", () => {
     expect(comments[1]?.permalinkUrl).toContain("thread=750");
   });
 
+  it("does not treat user-authored <a>Link</a> in body as a footer row", () => {
+    // The body row contains a user-authored anchor with text "Link" pointing at
+    // an unrelated URL. The footer-row classifier must not mistake it for the
+    // LJ "(Link)" permalink and skip the row.
+    const html = `<!DOCTYPE html><html><body>
+      <div id="ljcmt930" style="margin-left:0px;">
+        <a name="t930"></a>
+        <div align='right' class='entry'>
+          <table id='cmtbar930' width='95%'>
+            <tr><td>
+              <table><tr>
+                <td><span class="ljuser" data-ljuser="commenter11" lj:user="commenter11"><a href="https://commenter11.livejournal.com/" class="i-ljuser-username"><b>commenter11</b></a></span></td>
+                <td><table><tr><td>Subject:</td><td>Re:</td></tr><tr><td>Link:</td><td>(<a href='https://author.livejournal.com/49.html?thread=930#t930'>Link</a>)</td></tr><tr><td>Time:</td><td><span title="x">2004-02-15 10:00 am (UTC)</span></td></tr></table></td>
+              </tr></table>
+            </td></tr>
+            <tr><td>here is a <a href="https://example.com/article">Link</a> for more context</td></tr>
+            <tr><td>(<a href="https://author.livejournal.com/49.html?replyto=930">Reply</a>) (<a href='https://author.livejournal.com/49.html?thread=930#t930'>Thread</a>)</td></tr>
+          </table>
+        </div>
+      </div>
+    </body></html>`;
+    const comments = extractCommentsFromHtml(html);
+    expect(comments[0]?.contentHtml).toContain("for more context");
+    expect(comments[0]?.contentHtml).toContain("https://example.com/article");
+  });
+
   it("treats anonymous comments in cmtbar layout as Anonymous when no ljuser span is present", () => {
     const html = `<!DOCTYPE html><html><body>
       <div id="ljcmt920" style="margin-left:0px;">

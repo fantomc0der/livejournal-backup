@@ -193,6 +193,8 @@ function findLegacyTimestamp(
   if ($headers.length === 0) {
     $headers = $cmt.find('table[id^="cmtbar"]').find("> tbody > tr, > tr").first();
   }
+  // Last-resort fallback for unknown S1 layouts: search the whole comment.
+  // Re-introduces the body-shadowing risk, so prefer the scoped paths above.
   if ($headers.length === 0) $headers = $cmt;
 
   let timestampText = "";
@@ -306,13 +308,14 @@ function rowHasReplyOrParentLink(
 ): boolean {
   const links = $tr.find("a").toArray();
   if (links.length === 0) return false;
-  // The "Link" arm is safe here because the only place a "(Link)" anchor appears
-  // in a cmtbar layout is inside the metadata sub-table, which the caller already
-  // skips via the "row contains a nested <table>" guard before invoking this.
+  // The text-only match (Parent/Thread/Link) is gated on a thread= href so a
+  // commenter who wrote <a>Link</a> with an unrelated href can't make their
+  // body row look like an LJ footer. The Reply arm is gated by replyto/mode.
   return links.some((a) => {
     const $a = $(a as Element);
     const href = $a.attr("href") ?? "";
     if (/[?&]replyto=|[?&]mode=reply/i.test(href)) return true;
+    if (!/[?&]thread=/i.test(href)) return false;
     const text = ($a.text() ?? "").trim();
     return /^(?:Reply|Parent|Thread|Link)$/i.test(text);
   });
