@@ -194,7 +194,10 @@ function createTurndownService(): TurndownService {
       const text = content.replace(/[\r\n]+/g, " ").replace(/\|/g, "\\|").trim();
       const index = directCellIndex(node);
       const prefix = index === 0 ? "| " : " ";
-      return prefix + text + " |";
+      const rawSpan = parseInt((node as HTMLElement).getAttribute?.("colspan") ?? "1", 10);
+      const span = Number.isFinite(rawSpan) && rawSpan > 1 ? rawSpan : 1;
+      const extra = span > 1 ? " |".repeat(span - 1) : "";
+      return prefix + text + " |" + extra;
     },
   });
 
