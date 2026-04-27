@@ -72,7 +72,7 @@ src/
     calendar.ts               # Fetches /{username}/calendar/ → extracts available years
     year.ts                   # Fetches /{username}/{year}/ → extracts dates with entries
     day.ts                    # Fetches /{username}/{year}/{mm}/{dd}/ → extracts entries
-    comments.ts               # Fetches /{post-id}.html?view=comments → extracts comments with nesting depth
+    comments.ts               # Fetches /{post-id}.html?nojs=1&view=comments → extracts comments with nesting depth across modern (b-tree-twig) and S1 legacy (ljcmt{id}) themes
   tui/
     tty.ts                    # isTTY() — checks whether stdout is an interactive terminal
     logger.ts                 # TuiLogger (extends Logger) — routes log calls through clack/spinners/progress
