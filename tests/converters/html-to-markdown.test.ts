@@ -288,7 +288,7 @@ describe("htmlToMarkdown", () => {
     expect(result).toContain("| Magic Number | 17 |");
   });
 
-  it("separator column count respects colspan on first-row cells", () => {
+  it("colspan cells emit extra empty columns to keep table width consistent", () => {
     const html = `
       <table>
         <tr><td colspan="2">Header</td></tr>
@@ -296,7 +296,7 @@ describe("htmlToMarkdown", () => {
       </table>
     `;
     const result = htmlToMarkdown(html);
-    expect(result).toContain("| Header |");
+    expect(result).toContain("| Header | |");
     expect(result).toContain("| --- | --- |");
     expect(result).toContain("| Left | Right |");
   });
@@ -351,7 +351,7 @@ describe("htmlToMarkdown", () => {
       </div>
     `;
     const result = htmlToMarkdown(html);
-    expect(result).toContain("| someuser |");
+    expect(result).toContain("| someuser | |");
     expect(result).toContain("| --- | --- |");
     expect(result).toContain("| Magic Number | 17 |");
     expect(result).toContain("| Job | Celebrity Nobody |");
