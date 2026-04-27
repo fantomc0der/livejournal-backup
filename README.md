@@ -76,6 +76,7 @@ Options:
   --verbose                  Enable verbose logging
   --skip-existing            Skip dates that already have a markdown file
   --dry-run                  Show what would be archived without downloading or writing files
+  --include-comments         Fetch and include user comments in archived markdown files
   -h, --help                 Display help
   -V, --version              Display version
 ```
@@ -108,6 +109,9 @@ bun run src/index.ts archive --start-date 2002-01-24 --days 1
 # Archive only the first 5 days (useful for quick testing)
 bun run src/index.ts archive --limit 5
 
+# Include user comments in archived files
+bun run src/index.ts archive --year 2003 --include-comments
+
 # Dry run — see what would be archived without writing any files
 bun run src/index.ts archive --dry-run
 
@@ -122,6 +126,7 @@ bun run src/index.ts archive --start-date 2002-12-15 --days 30 --dry-run
 
 ```
 archive/
+  livejournal.md            ← table of contents (generated after archiving)
   2002/
     2002-01-24.md
     2002-02-03.md
@@ -148,6 +153,27 @@ hey this is my first post here...
 ## Entry 2 - 05:26 pm
 
 sitting around right now...
+```
+
+When `--include-comments` is used, each entry with comments gets a collapsible section appended beneath it:
+
+```markdown
+## Entry 1 - 04:34 pm
+
+hey this is my first post here...
+
+<details>
+<summary>3 comments</summary>
+
+**[someuser](https://someuser.livejournal.com/)** — [Jan 24, 2002](https://example.livejournal.com/123.html?thread=456)
+
+great post!
+
+> **[anotheruser](https://anotheruser.livejournal.com/)** — [Jan 24, 2002](https://example.livejournal.com/123.html?thread=789)
+>
+> agreed!
+
+</details>
 ```
 
 ## Terminal Output
@@ -177,14 +203,19 @@ src/
     calendar.ts               # Discovers available years
     year.ts                   # Discovers entry dates in a year
     day.ts                    # Extracts entries from a day page
+    comments.ts               # Extracts comments from an entry's comment page
   converters/
     html-to-markdown.ts       # HTML to Markdown conversion
   writers/
-    file-writer.ts            # Writes markdown files to disk
+    file-writer.ts            # Writes markdown files to disk; builds table of contents
+  tui/
+    tty.ts                    # isTTY() check
+    logger.ts                 # TuiLogger with @clack/prompts (TTY only)
+    progress.ts               # dualProgress bar renderer
   utils/
+    date.ts                   # LocalDate helpers
     http.ts                   # Fetch with exponential backoff retry
     logger.ts                 # Leveled logger (plain text)
-    tui.ts                    # TUI logger with @clack/prompts (TTY only)
 tests/
   scrapers/                   # Unit tests for scrapers
   converters/                 # Unit tests for converter
