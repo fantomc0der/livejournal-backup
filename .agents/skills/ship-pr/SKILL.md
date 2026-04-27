@@ -1,12 +1,12 @@
 ---
 name: ship-pr
 description: After code changes are complete, autonomously open a PR, wait for CI, mark it ready, handle Claude review feedback, and verify the auto-merge lands. Covers the full lifecycle from "code is done" to "merged to main" without user intervention.
-compatibility: Requires git and gh CLI, both installed and authenticated. Assumes the current branch is the feature branch for the work just completed.
+compatibility: Requires git and gh CLI, both installed and authenticated.
 ---
 
 # Ship PR
 
-Autonomously carry a finished branch through this repo's full PR lifecycle: open the PR, wait for CI, mark it ready, address any Claude review feedback, and confirm the squash-merge completes. No manual steps by the user.
+Autonomously carry finished work through this repo's full PR lifecycle: create a feature branch, open the PR, wait for CI, mark it ready, address any Claude review feedback, confirm the squash-merge completes, and clean up. No manual steps by the user.
 
 ## When to invoke
 
@@ -19,12 +19,31 @@ Do **not** invoke this skill automatically just because code changes were made. 
 
 ## Assumptions and preconditions
 
-- You are on a **feature branch** (not `main`). If `git rev-parse --abbrev-ref HEAD` returns `main` or the repo default branch, stop and tell the user.
 - All code changes are **committed**. If `git status --porcelain` shows uncommitted changes, commit them with a sensible message before proceeding (do not silently drop them or silently include noise like `test-output/`).
-- The branch is **ahead of the target** by at least one commit. If not, stop — there is nothing to PR.
 - This repo uses the automation documented in `docs/pr-automation.md`: every new PR is auto-converted to a draft by `enforce-draft.yml`, Claude reviews on `ready_for_review`/`synchronize`, and `auto-merge.yml` squash-merges once both CI and Claude vote PASS.
 
-## Step 1 — Open the PR
+## Workflow Steps 
+
+### Step 1 — Create and switch to a new feature branch
+
+Before opening the PR, ensure the work is on a dedicated feature branch based off `origin/main`. This must always be done — never open a PR directly from `main`.
+
+```bash
+git fetch origin main
+git checkout -b <branch-name> origin/main
+```
+
+Choose a short, descriptive branch name in `kebab-case` that reflects the work (e.g. `add-table-formatting`, `fix-calendar-scraper`). Never use names that contain real usernames or environment-specific values.
+
+If you are already on a feature branch (i.e. the current branch is not `main` and it was created for this work), skip the checkout and just ensure any commits are present on it. If you are on `main` with commits that need to move to a new branch:
+
+```bash
+git fetch origin main
+git checkout -b <branch-name>
+# commits already present; origin/main is behind, so nothing to reset
+```
+
+### Step 2 — Open the PR
 
 Follow the `create-pull-request` skill (`.agents/skills/create-pull-request/SKILL.md`) in full for all push, diff-review, title, and body steps. That skill's output is the PR number and URL — capture both.
 
@@ -32,7 +51,7 @@ After `gh pr create` returns:
 - Note the PR number for all subsequent `gh` calls.
 - The PR will be auto-converted to a draft within seconds by `enforce-draft.yml`. That is expected; do not try to prevent it.
 
-## Step 2 — Wait for CI to pass on the draft
+### Step 3 — Wait for CI to pass on the draft
 
 CI Build (`ci-build.yml`) runs on every push regardless of draft state. Poll until all status checks on the current head SHA are complete:
 
@@ -57,7 +76,7 @@ gh run rerun <run-id> --failed
 
 Do not re-run checks speculatively — only when there is clear evidence of a transient failure.
 
-## Step 3 — Mark the PR ready for review
+### Step 4 — Mark the PR ready for review
 
 Once all CI checks are green:
 
@@ -67,7 +86,7 @@ gh pr ready <PR>
 
 This fires the `ready_for_review` event, which triggers `claude-review.yml`. Do not mark ready until CI is green — a failing CI check will prevent the auto-merge gate from opening even after Claude votes PASS.
 
-## Step 4 — Wait for the Claude review
+### Step 5 — Wait for the Claude review
 
 Claude's review runs as a GitHub Actions job (workflow: "Claude PR Review"). Poll until the `review` check completes:
 
@@ -82,11 +101,11 @@ gh pr view <PR> --comments --json comments \
   --jq '[.comments[] | select(.body | test("REVIEW: (PASS|FAIL)"))] | last | .body'
 ```
 
-### If verdict is REVIEW: PASS
+#### If verdict is REVIEW: PASS
 
-Proceed to Step 5. No code changes needed.
+Proceed to Step 6. No code changes needed.
 
-### If verdict is REVIEW: FAIL
+#### If verdict is REVIEW: FAIL
 
 Read the full review comment to understand all the issues raised. Also check for any inline diff comments:
 
@@ -99,12 +118,12 @@ Address **every blocking issue** Claude identified. For minor observations Claud
 After making fixes:
 1. Commit with a clear message describing what was addressed.
 2. Push the branch.
-3. CI will re-run automatically (it triggers on `synchronize`). Wait for CI to go green again (Step 2 logic).
-4. Claude will re-review automatically on `synchronize`. Wait for the new verdict (Step 4 logic).
+3. CI will re-run automatically (it triggers on `synchronize`). Wait for CI to go green again (Step 3 logic).
+4. Claude will re-review automatically on `synchronize`. Wait for the new verdict (Step 5 logic).
 
 Repeat the fix → push → CI → Claude review loop until the verdict is REVIEW: PASS. If the same issue persists after two fix attempts and you are not making progress, stop and surface the problem to the user rather than looping indefinitely.
 
-## Step 5 — Wait for auto-merge
+### Step 6 — Wait for auto-merge
 
 Once CI is green and Claude's verdict is REVIEW: PASS, the `auto-merge.yml` gate will run and squash-merge the PR. Poll the PR state:
 
@@ -139,12 +158,25 @@ gh pr checks <PR>
 
 As a last resort (e.g. auto-merge workflow is broken), report the situation to the user and offer to merge manually with `gh pr merge <PR> --squash --delete-branch`.
 
-## Step 6 — Report completion
+### Step 7 — Clean up the branch
+
+Once the merge is confirmed, switch back to `main` and delete the local feature branch:
+
+```bash
+git checkout main
+git pull origin main
+git branch -d <branch-name>
+```
+
+The remote branch is deleted automatically — both by the `--delete-branch` flag in `auto-merge.yml` and by the repo's "Automatically delete head branches" GitHub setting. Do not run `git push origin --delete`; the branch will already be gone and the command will error.
+
+### Step 8 — Report completion
 
 Tell the user:
 - PR number, title, and merge commit SHA.
 - A one-line summary of what changed (title is usually sufficient).
 - Any notable issues encountered and how they were resolved (CI flakes, review feedback, etc.).
+- Confirmation that the feature branch has been deleted and `main` is checked out.
 
 ## Hard rules (inherited from repo CLAUDE.md)
 
@@ -164,4 +196,4 @@ This skill is designed to be chained after OMC execution commands. The intended 
 
 Claude should recognise "ship-pr", "ship pr", "auto-merge", "hands-off PR" as signals to invoke this skill after the primary work command completes. The skill fires *after* the code work is finished, not concurrently with it. The OMC command handles implementation; this skill handles the PR lifecycle.
 
-If OMC work is done in multiple passes (e.g. autopilot phase 2 → phase 3), wait until the final pass is complete and all code changes are committed before starting Step 1.
+If OMC work is done in multiple passes (e.g. autopilot phase 2 → phase 3), wait until the final pass is complete and all code changes are committed before starting Step 1 (branch creation).
