@@ -59,6 +59,7 @@ export function buildCli(): Command {
     .option("--limit <n>", "Max number of days to archive (omit for no limit)", parseIntOption)
     .option("--skip-existing", "Skip dates that already have a markdown file", false)
     .option("--dry-run", "Show what would be archived without downloading or writing files", false)
+    .option("--include-comments", "Fetch and include user comments in archived markdown files", false)
     .action(async (usernameArg: string | undefined, opts: {
       year?: number;
       startDate?: LocalDate;
@@ -70,6 +71,7 @@ export function buildCli(): Command {
       verbose: boolean;
       skipExisting: boolean;
       dryRun: boolean;
+      includeComments: boolean;
     }) => {
       const username = usernameArg || process.env.LJ_USERNAME;
 
@@ -107,6 +109,7 @@ export function buildCli(): Command {
         verbose: opts.verbose,
         skipExisting: opts.skipExisting,
         dryRun: opts.dryRun,
+        includeComments: opts.includeComments,
       });
     });
 

@@ -8,6 +8,7 @@ import { dualProgress, type DualProgress } from "../tui/progress.ts";
 import { scrapeCalendar } from "../scrapers/calendar.ts";
 import { scrapeYear } from "../scrapers/year.ts";
 import { scrapeDay } from "../scrapers/day.ts";
+import { scrapeComments, type Comment } from "../scrapers/comments.ts";
 import { writeDayFile, dayFileExists, getDayFilePath, writeTableOfContents } from "../writers/file-writer.ts";
 import { addDays, formatDate, isDateInRange, yearsInRange } from "../utils/date.ts";
 
@@ -93,6 +94,7 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
 
   let totalEntries = 0;
   let totalDays = 0;
+  let totalComments = 0;
 
   const limitReached = (): boolean =>
     options.limit !== undefined && totalDays >= options.limit;
@@ -106,7 +108,13 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
     } else {
       const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
       if (entries.length > 0) {
-        await writeDayFile(options.outputDir, date, entries, logger);
+        const commentsByEntryUrl = options.includeComments
+          ? await fetchCommentsForEntries(entries, options, logger)
+          : undefined;
+        if (commentsByEntryUrl) {
+          for (const comments of commentsByEntryUrl.values()) totalComments += comments.length;
+        }
+        await writeDayFile(options.outputDir, date, entries, logger, commentsByEntryUrl);
         totalEntries += entries.length;
         totalDays++;
       } else {
@@ -150,7 +158,13 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
         }
         const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
         if (entries.length > 0) {
-          await writeDayFile(options.outputDir, date, entries, logger);
+          const commentsByEntryUrl = options.includeComments
+            ? await fetchCommentsForEntries(entries, options, logger)
+            : undefined;
+          if (commentsByEntryUrl) {
+            for (const comments of commentsByEntryUrl.values()) totalComments += comments.length;
+          }
+          await writeDayFile(options.outputDir, date, entries, logger, commentsByEntryUrl);
           totalEntries += entries.length;
           totalDays++;
         } else {
@@ -169,7 +183,8 @@ async function runArchivePlain(options: ArchiveOptions): Promise<void> {
   if (options.dryRun) {
     logger.info(`${pc.magenta("Dry run")} for archive complete: ${fmt(totalEntries)} journal entries across ${fmt(totalDays)} days`);
   } else {
-    logger.info(`Archive complete: ${fmt(totalEntries)} journal entries across ${fmt(totalDays)} days`);
+    const commentSuffix = options.includeComments ? `, ${fmt(totalComments)} comments` : "";
+    logger.info(`Archive complete: ${fmt(totalEntries)} journal entries across ${fmt(totalDays)} days${commentSuffix}`);
   }
 }
 
@@ -205,7 +220,7 @@ async function runArchiveTui(options: ArchiveOptions): Promise<void> {
   }
 
   try {
-    const { totalEntries, totalDays } = await archiveTuiCore(options, logger, state);
+    const { totalEntries, totalDays, totalComments } = await archiveTuiCore(options, logger, state);
     const elapsed = formatElapsed(Date.now() - startTime);
 
     if (options.limit !== undefined && totalDays >= options.limit) {
@@ -214,15 +229,21 @@ async function runArchiveTui(options: ArchiveOptions): Promise<void> {
     if (!options.dryRun && totalDays > 0) {
       clack.log.step("Writing table of contents...");
       await writeTableOfContents(options.outputDir, options.username, logger);
-      clack.note(
-        `${pc.green("✓")} ${totalDays} days archived\n${pc.green("✓")} ${totalEntries} journal entries\n${pc.green("✓")} Output: ${options.outputDir}`,
-        "Summary",
-      );
+      const summaryLines = [
+        `${pc.green("✓")} ${totalDays} days archived`,
+        `${pc.green("✓")} ${totalEntries} journal entries`,
+      ];
+      if (options.includeComments) {
+        summaryLines.push(`${pc.green("✓")} ${totalComments} comments archived`);
+      }
+      summaryLines.push(`${pc.green("✓")} Output: ${options.outputDir}`);
+      clack.note(summaryLines.join("\n"), "Summary");
     }
     if (options.dryRun) {
       clack.outro(`${pc.magenta("Dry run")} for archive complete: ${pc.bold(fmt(totalEntries))} journal entries across ${pc.bold(fmt(totalDays))} days (${elapsed})`);
     } else {
-      clack.outro(`Archive complete: ${pc.bold(fmt(totalEntries))} journal entries across ${pc.bold(fmt(totalDays))} days (${elapsed})`);
+      const commentSuffix = options.includeComments ? `, ${pc.bold(fmt(totalComments))} comments` : "";
+      clack.outro(`Archive complete: ${pc.bold(fmt(totalEntries))} journal entries across ${pc.bold(fmt(totalDays))} days${commentSuffix} (${elapsed})`);
     }
   } catch (err) {
     cleanupTui(state, logger);
@@ -255,13 +276,36 @@ function stopSpinner(state: TuiState, logger: TuiLogger, message: string): void 
   state.activeSpinner = null;
 }
 
+async function fetchCommentsForEntries(
+  entries: { url: string; commentCount?: number }[],
+  options: ArchiveOptions,
+  logger: Logger
+): Promise<Map<string, Comment[]>> {
+  const map = new Map<string, Comment[]>();
+  for (const entry of entries) {
+    if (!entry.url) continue;
+    // Skip fetching when the day page already reported 0 comments
+    if (entry.commentCount === 0) continue;
+    try {
+      const comments = await scrapeComments(entry.url, options.retries, options.delay, logger);
+      if (comments.length > 0) {
+        map.set(entry.url, comments);
+      }
+    } catch (err) {
+      logger.warn(`Failed to fetch comments for ${entry.url}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return map;
+}
+
 async function archiveTuiCore(
   options: ArchiveOptions,
   logger: TuiLogger,
   state: TuiState,
-): Promise<{ totalEntries: number; totalDays: number }> {
+): Promise<{ totalEntries: number; totalDays: number; totalComments: number }> {
   let totalEntries = 0;
   let totalDays = 0;
+  let totalComments = 0;
 
   const range = resolveRange(options);
   if (range.rangeLabel) {
@@ -282,7 +326,13 @@ async function archiveTuiCore(
     } else {
       const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
       if (entries.length > 0) {
-        await writeDayFile(options.outputDir, date, entries, logger);
+        const commentsByEntryUrl = options.includeComments
+          ? await fetchCommentsForEntries(entries, options, logger)
+          : undefined;
+        if (commentsByEntryUrl) {
+          for (const comments of commentsByEntryUrl.values()) totalComments += comments.length;
+        }
+        await writeDayFile(options.outputDir, date, entries, logger, commentsByEntryUrl);
         const filePath = getDayFilePath(options.outputDir, date);
         stopSpinner(state, logger, pc.green("Done"));
         clack.log.success(`Wrote ${pc.dim(filePath)}`);
@@ -293,7 +343,7 @@ async function archiveTuiCore(
         clack.log.message(pc.dim(`⊘ No entries found for ${dateLabel}`));
       }
     }
-    return { totalEntries, totalDays };
+    return { totalEntries, totalDays, totalComments };
   }
 
   let years: number[];
@@ -364,9 +414,18 @@ async function archiveTuiCore(
           prog.message(`${pc.cyan(shortDate(date.month, date.day))} ${pc.dim("fetching…")}`);
           const entries = await scrapeDay(options.username, date.year, date.month, date.day, options.retries, options.delay, logger);
           if (entries.length > 0) {
-            await writeDayFile(options.outputDir, date, entries, logger);
+            let dayComments = 0;
+            const commentsByEntryUrl = options.includeComments
+              ? await fetchCommentsForEntries(entries, options, logger)
+              : undefined;
+            if (commentsByEntryUrl) {
+              for (const comments of commentsByEntryUrl.values()) dayComments += comments.length;
+              totalComments += dayComments;
+            }
+            await writeDayFile(options.outputDir, date, entries, logger, commentsByEntryUrl);
             const filePath = getDayFilePath(options.outputDir, date);
-            prog.advance(1, `${pc.green("✓")} ${pc.cyan(shortDate(date.month, date.day))} ${pc.dim(filePath)}`);
+            const commentNote = options.includeComments ? pc.dim(` +${dayComments}💬`) : "";
+            prog.advance(1, `${pc.green("✓")} ${pc.cyan(shortDate(date.month, date.day))} ${pc.dim(filePath)}${commentNote}`);
             totalEntries += entries.length;
             totalDays++;
             yearEntries += entries.length;
@@ -383,7 +442,7 @@ async function archiveTuiCore(
     }
   }
 
-  return { totalEntries, totalDays };
+  return { totalEntries, totalDays, totalComments };
 }
 
 function logDryRunEntryPlain(logger: Logger, outputDir: string, date: DateEntry): void {

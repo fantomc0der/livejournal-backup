@@ -71,6 +71,7 @@ src/
     calendar.ts               # Fetches /{username}/calendar/ → extracts available years
     year.ts                   # Fetches /{username}/{year}/ → extracts dates with entries
     day.ts                    # Fetches /{username}/{year}/{mm}/{dd}/ → extracts entries
+    comments.ts               # Fetches /{post-id}.html?view=comments → extracts comments with nesting depth
   tui/
     tty.ts                    # isTTY() — checks whether stdout is an interactive terminal
     logger.ts                 # TuiLogger (extends Logger) — routes log calls through clack/spinners/progress
@@ -119,6 +120,7 @@ Options:
   --verbose                  Enable debug-level logging
   --skip-existing            Skip dates that already have a .md file
   --dry-run                  Show what would be archived without downloading or writing files
+  --include-comments         Fetch and include user comments in archived markdown files
 ```
 
 The `username` argument is optional. If omitted, the CLI reads `LJ_USERNAME` from `.env`. A CLI argument always takes priority over the env value.
@@ -135,7 +137,7 @@ Tests use `bun:test` (`describe` / `it` / `expect`). **No real HTTP calls are ma
 bun test
 ```
 
-79 tests across 5 files should all pass in under 200 ms.
+103 tests across 6 files should all pass in under 200 ms.
 
 ### When testing the CLI against a live account
 

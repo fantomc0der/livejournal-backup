@@ -3,6 +3,7 @@ export interface JournalEntry {
   time: string;
   url: string;
   content: string; // HTML content
+  commentCount?: number; // from day page link text, if present
 }
 
 export interface LocalDate {
@@ -23,6 +24,7 @@ export interface ArchiveOptions {
   verbose: boolean;
   skipExisting: boolean;
   dryRun: boolean;
+  includeComments: boolean;
 }
 
 export interface DateEntry extends LocalDate {
