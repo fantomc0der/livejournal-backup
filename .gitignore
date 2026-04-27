@@ -3,6 +3,7 @@
 .claude/settings.local.json
 .sisyphus/
 .kilo/
+.omc/
 
 .output/
 node_modules/
