@@ -244,4 +244,115 @@ describe("htmlToMarkdown", () => {
     const result = htmlToMarkdown(html);
     expect(result).not.toMatch(/\n{3,}/);
   });
+
+  it("converts a basic two-column table into a markdown table", () => {
+    const html = `
+      <table>
+        <tr><td>Name</td><td>Value</td></tr>
+        <tr><td>Job</td><td>Celebrity Nobody</td></tr>
+        <tr><td>Personality</td><td>Rainy Day</td></tr>
+      </table>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("| Name | Value |");
+    expect(result).toContain("| --- | --- |");
+    expect(result).toContain("| Job | Celebrity Nobody |");
+    expect(result).toContain("| Personality | Rainy Day |");
+  });
+
+  it("treats the first row as a heading even without TH cells", () => {
+    const html = `<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>`;
+    const result = htmlToMarkdown(html);
+    const lines = result.split("\n").filter((l) => l.trim().length > 0);
+    expect(lines[0]).toBe("| A | B |");
+    expect(lines[1]).toBe("| --- | --- |");
+    expect(lines[2]).toBe("| 1 | 2 |");
+  });
+
+  it("unwraps single-cell wrapper tables around inner data tables", () => {
+    const html = `
+      <table>
+        <tr>
+          <td>
+            <table>
+              <tr><td>Field</td><td>Result</td></tr>
+              <tr><td>Magic Number</td><td>17</td></tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("| Field | Result |");
+    expect(result).toContain("| --- | --- |");
+    expect(result).toContain("| Magic Number | 17 |");
+  });
+
+  it("strips form/input/button elements from table cells", () => {
+    const html = `
+      <table>
+        <tr><td colspan="2">Header</td></tr>
+        <tr><td>Field</td><td>Value</td></tr>
+        <tr>
+          <td colspan="2">
+            <a href="http://example.com">attribution link</a>
+            <form action="http://example.com/submit" method="POST">
+              <input type="text" name="q">
+              <input type="submit" value="Go">
+            </form>
+          </td>
+        </tr>
+      </table>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).not.toMatch(/<form|<input|<button/i);
+    expect(result).not.toContain("Go");
+    expect(result).toContain("[attribution link](http://example.com)");
+    expect(result).toContain("| Field | Value |");
+  });
+
+  it("escapes pipe characters inside table cells", () => {
+    const html = `<table><tr><td>Name</td><td>Value</td></tr><tr><td>foo</td><td>a|b</td></tr></table>`;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("| foo | a\\|b |");
+  });
+
+  it("collapses newlines inside cells to spaces", () => {
+    const html = `<table><tr><td>Name</td><td>Value</td></tr><tr><td>foo</td><td>line one<br>line two</td></tr></table>`;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("| foo | line one line two |");
+  });
+
+  it("renders a MemeJack-style nested LJ table as a clean markdown table", () => {
+    const html = `
+      <div class="entry-content">
+        <table bgcolor="#ffffff" width="80%"><tr><td>
+          <table bgcolor="#000000" cellspacing="1" width="100%">
+            <tr bgcolor="#000000"><td align="center" colspan="2"><font size="2" color="#ffffff">someuser</font></td></tr>
+            <tr bgcolor="#bbbbbb"><td valign="top" width="30%"><font size="2" color="#000000">Magic Number</font></td><td valign="top"><font size="2" color="#000000">17</font></td></tr>
+            <tr bgcolor="#bbbbbb"><td valign="top" width="30%"><font size="2" color="#000000">Job</font></td><td valign="top"><font size="2" color="#000000">Celebrity Nobody</font></td></tr>
+            <tr bgcolor="#bbbbbb"><td valign="top" width="30%"><font size="2" color="#000000">Colour</font></td><td bgcolor="#00ff00" valign="top"></td></tr>
+            <tr bgcolor="#999999"><td align="center" colspan="2"><a href="http://www.castlemooch.net/memejack/homepage.asp">Brought to you by MemeJack</a><form action="http://www.castlemooch.net/memejack/ljname.asp" method="POST"><input type="text" name="txtName"><input type="submit" name="cmdSubmit" value="Submit"></form></td></tr>
+          </table>
+        </td></tr></table>
+      </div>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toContain("| someuser |");
+    expect(result).toContain("| --- |");
+    expect(result).toContain("| Magic Number | 17 |");
+    expect(result).toContain("| Job | Celebrity Nobody |");
+    expect(result).toContain("| Colour |");
+    expect(result).toContain("[Brought to you by MemeJack](http://www.castlemooch.net/memejack/homepage.asp)");
+    expect(result).not.toMatch(/<form|<input|<table|<tr|<td/i);
+    expect(result).not.toContain("Submit");
+  });
+
+  it("keeps stripping nav-only tables (does not convert them to markdown tables)", () => {
+    const html = `
+      <table><tr><td><a href="https://user.livejournal.com/123.html?mode=reply#add_comment">comment</a></td></tr></table>
+    `;
+    const result = htmlToMarkdown(html);
+    expect(result).toBe("");
+  });
 });
