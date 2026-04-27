@@ -180,3 +180,53 @@ describe("extractCommentsFromHtml", () => {
     expect(comments[2]?.userUrl).toBe("");
   });
 });
+
+const LEGACY_COMMENTS_HTML = `
+<!DOCTYPE html>
+<html>
+<body>
+<table>
+  <tr>
+    <td id="t500">
+      <div class="username-holder">olduser</div>
+      <a href="https://author.livejournal.com/99.html?thread=500">January 5 2003, 12:00:00 UTC</a>
+      <p>Legacy comment content here.</p>
+      <a href="https://author.livejournal.com/99.html?replyto=500">Reply</a>
+    </td>
+  </tr>
+  <tr>
+    <td id="t600">
+      <div class="username-holder">otheruser</div>
+      <a href="https://author.livejournal.com/99.html?thread=600#t600">January 5 2003, 14:00:00 UTC</a>
+      <p>Another legacy comment.</p>
+      <a href="https://author.livejournal.com/99.html?replyto=600">Reply</a>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
+`;
+
+describe("extractCommentsFromHtml legacy fallback", () => {
+  it("extracts comments from pages without b-tree-twig structure", () => {
+    const comments = extractCommentsFromHtml(LEGACY_COMMENTS_HTML);
+    expect(comments.length).toBe(2);
+  });
+
+  it("extracts thread id from thread= URL without #t anchor", () => {
+    const comments = extractCommentsFromHtml(LEGACY_COMMENTS_HTML);
+    expect(comments[0]?.id).toBe("t500");
+  });
+
+  it("extracts thread id from thread= URL with #t anchor", () => {
+    const comments = extractCommentsFromHtml(LEGACY_COMMENTS_HTML);
+    expect(comments[1]?.id).toBe("t600");
+  });
+
+  it("strips reply links from legacy comment content", () => {
+    const comments = extractCommentsFromHtml(LEGACY_COMMENTS_HTML);
+    for (const comment of comments) {
+      expect(comment.contentHtml).not.toContain("replyto=");
+    }
+  });
+});

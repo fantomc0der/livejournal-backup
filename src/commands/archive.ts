@@ -277,13 +277,15 @@ function stopSpinner(state: TuiState, logger: TuiLogger, message: string): void 
 }
 
 async function fetchCommentsForEntries(
-  entries: { url: string }[],
+  entries: { url: string; commentCount?: number }[],
   options: ArchiveOptions,
   logger: Logger
 ): Promise<Map<string, Comment[]>> {
   const map = new Map<string, Comment[]>();
   for (const entry of entries) {
     if (!entry.url) continue;
+    // Skip fetching when the day page already reported 0 comments
+    if (entry.commentCount === 0) continue;
     try {
       const comments = await scrapeComments(entry.url, options.retries, options.delay, logger);
       if (comments.length > 0) {

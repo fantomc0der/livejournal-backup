@@ -225,3 +225,118 @@ describe("writeTableOfContents", () => {
     expect(await pathExists(tocPath)).toBe(false);
   });
 });
+
+import type { Comment } from "../../src/scrapers/comments.ts";
+
+describe("writeDayFile with comments", () => {
+  const entryWithComments: JournalEntry = {
+    subject: "(no subject)",
+    time: "03:00 pm",
+    url: "https://testuser.livejournal.com/1234.html",
+    content: "<p>Entry content.</p>",
+  };
+
+  const topLevelComment: Comment = {
+    id: "t100",
+    depth: 0,
+    username: "commenter",
+    userUrl: "https://commenter.livejournal.com/",
+    timestampText: "January 1 2004, 10:00:00 UTC",
+    permalinkUrl: "https://testuser.livejournal.com/1234.html?thread=100#t100",
+    contentHtml: "Top level comment.",
+  };
+
+  const nestedComment: Comment = {
+    id: "t200",
+    depth: 1,
+    username: "replier",
+    userUrl: "https://replier.livejournal.com/",
+    timestampText: "January 1 2004, 11:00:00 UTC",
+    permalinkUrl: "https://testuser.livejournal.com/1234.html?thread=200#t200",
+    contentHtml: "Nested reply comment.",
+  };
+
+  const deepNestedComment: Comment = {
+    id: "t300",
+    depth: 2,
+    username: "deepreplier",
+    userUrl: "https://deepreplier.livejournal.com/",
+    timestampText: "January 1 2004, 12:00:00 UTC",
+    permalinkUrl: "https://testuser.livejournal.com/1234.html?thread=300#t300",
+    contentHtml: "Deeply nested reply.",
+  };
+
+  it("renders a collapsible <details> block when comments are present", async () => {
+    const commentMap = new Map([
+      [entryWithComments.url, [topLevelComment]],
+    ]);
+    await writeDayFile(testDir, sampleDate, [entryWithComments], logger, commentMap);
+    const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
+    expect(content).toContain("<details>");
+    expect(content).toContain("</details>");
+    expect(content).toContain("<summary>1 comment</summary>");
+  });
+
+  it("uses plural 'comments' for counts > 1", async () => {
+    const commentMap = new Map([
+      [entryWithComments.url, [topLevelComment, nestedComment]],
+    ]);
+    await writeDayFile(testDir, sampleDate, [entryWithComments], logger, commentMap);
+    const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
+    expect(content).toContain("<summary>2 comments</summary>");
+  });
+
+  it("includes username linked to profile URL", async () => {
+    const commentMap = new Map([
+      [entryWithComments.url, [topLevelComment]],
+    ]);
+    await writeDayFile(testDir, sampleDate, [entryWithComments], logger, commentMap);
+    const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
+    expect(content).toContain("[commenter](https://commenter.livejournal.com/)");
+  });
+
+  it("includes timestamp linked to comment permalink", async () => {
+    const commentMap = new Map([
+      [entryWithComments.url, [topLevelComment]],
+    ]);
+    await writeDayFile(testDir, sampleDate, [entryWithComments], logger, commentMap);
+    const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
+    expect(content).toContain("[January 1 2004, 10:00:00 UTC](https://testuser.livejournal.com/1234.html?thread=100#t100)");
+  });
+
+  it("indents nested comments with blockquote syntax", async () => {
+    const commentMap = new Map([
+      [entryWithComments.url, [topLevelComment, nestedComment]],
+    ]);
+    await writeDayFile(testDir, sampleDate, [entryWithComments], logger, commentMap);
+    const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
+    // depth-0 comment has no leading "> "
+    expect(content).toContain("**[commenter]");
+    // depth-1 comment has one level of "> " blockquote
+    expect(content).toContain("> **[replier]");
+  });
+
+  it("uses double blockquote for depth-2 comments instead of 4-space indent", async () => {
+    const commentMap = new Map([
+      [entryWithComments.url, [topLevelComment, nestedComment, deepNestedComment]],
+    ]);
+    await writeDayFile(testDir, sampleDate, [entryWithComments], logger, commentMap);
+    const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
+    // depth-2 must use "> > " not "    " (which would be a code block)
+    expect(content).toContain("> > **[deepreplier]");
+    expect(content).not.toMatch(/^ {4}\*\*/m);
+  });
+
+  it("omits comments block when entry has no comments", async () => {
+    const emptyCommentMap = new Map<string, Comment[]>();
+    await writeDayFile(testDir, sampleDate, [entryWithComments], logger, emptyCommentMap);
+    const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
+    expect(content).not.toContain("<details>");
+  });
+
+  it("omits comments block when commentsByEntryUrl is undefined", async () => {
+    await writeDayFile(testDir, sampleDate, [entryWithComments], logger, undefined);
+    const content = await readFile(join(testDir, "2002", "2002-01-24.md"), "utf-8");
+    expect(content).not.toContain("<details>");
+  });
+});

@@ -120,13 +120,13 @@ function extractLegacyComments($: cheerio.CheerioAPI): Comment[] {
   // Older LJ themes may not use b-tree-twig; use thread link anchors as anchors
   const comments: Comment[] = [];
   const seen = new Set<string>();
-  const threadPattern = /[?&]thread=(\d+)#t(\d+)/;
+  const threadPattern = /[?&]thread=(\d+)/;
 
   $('a[href*="thread="]').each((_i, el) => {
     const href = $(el).attr("href") ?? "";
     const match = threadPattern.exec(href);
     if (!match) return;
-    const threadId = `t${match[2]}`;
+    const threadId = `t${match[1]}`;
     if (seen.has(threadId)) return;
     seen.add(threadId);
 

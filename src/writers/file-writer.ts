@@ -98,8 +98,8 @@ function buildCommentsSection(comments: Comment[]): string {
   return lines.join("\n");
 }
 
-function buildCommentLines(comment: Comment, lines: string[]): string[] {
-  const indent = "  ".repeat(comment.depth);
+function buildCommentLines(comment: Comment, lines: string[]): void {
+  const quote = "> ".repeat(comment.depth);
   const userDisplay = comment.userUrl
     ? `[${comment.username}](${comment.userUrl})`
     : comment.username;
@@ -107,19 +107,16 @@ function buildCommentLines(comment: Comment, lines: string[]): string[] {
     ? `[${comment.timestampText}](${comment.permalinkUrl})`
     : comment.timestampText;
 
-  const headerLine = `${indent}**${userDisplay}** — ${timestampDisplay}`;
-  lines.push(headerLine);
+  lines.push(`${quote}**${userDisplay}** — ${timestampDisplay}`);
   lines.push("");
 
   const contentMd = htmlToMarkdown(comment.contentHtml);
   if (contentMd) {
     for (const contentLine of contentMd.split("\n")) {
-      lines.push(`${indent}${contentLine}`);
+      lines.push(`${quote}${contentLine}`);
     }
     lines.push("");
   }
-
-  return lines;
 }
 
 export async function writeTableOfContents(
